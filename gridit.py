@@ -4,20 +4,6 @@ from tkinter.filedialog import askopenfilename
 from PIL import Image, ImageTk
 import math
 
-"""
-class MainApplication(tk.Frame):
-    def __init__(self, parent, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
-        self.parent = parent
-
-        <create the rest of your GUI here>
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    MainApplication(root).pack(side="top", fill="both", expand=True)
-    root.mainloop()
-"""
-
 def print_hierarchy(widget, indent=0):
     """Prints the widget hierarchy starting from the given widget."""
     print(" " * indent + widget.winfo_class() + " " + str(widget))
@@ -43,6 +29,8 @@ class ScrollableImageFrame(ttk.Frame):
 
         self.parent = parent
         self.path = path
+        self.imscale = 1.0  # scale for the canvas image zoom, public for outer classes
+        self.delta = 1.3  # zoom magnitude
         # Initialize Widgets
         # Scrollbars
         hbar = AutoScrollbar(self, orient="horizontal")
@@ -64,25 +52,34 @@ class ScrollableImageFrame(ttk.Frame):
         self.canvas.bind('<MouseWheel>', self.wheel)  # zoom for Windows and MacOS, but not Linux
         self.canvas.bind('<Button-5>',   self.wheel)  # zoom for Linux, wheel scroll down
         self.canvas.bind('<Button-4>',   self.wheel)  # zoom for Linux, wheel scroll up
-        self.canvas.bind('<Motion>', self.motion)
+        #self.canvas.bind('<Motion>', self.motion)
         self.image = Image.open(path)
         self.imwidth, self.imheight = self.image.size
-        #self.min_side = min(self.imwidth, self.imheight)
+        self.min_side = min(self.imwidth, self.imheight)
         
         # Create image pyramid
         self.pyramid = [Image.open(self.path)]
         # Set ratio coefficient for image pyramid
         self.ratio = 1.0
         self.curr_img = 0  # current image from the pyramid
-        (w, h) = self.pyramid[-1].size
+        self.scale = self.imscale * self.ratio
+        self.reduction = 2  # reduction degree of image pyramid
+        (w, h), m, j = self.pyramid[-1].size, 512, 0
+        n = math.ceil(math.log(min(w, h) / m, self.reduction)) + 1  # image pyramid length
+        while w > m and h > m:  # top pyramid image is around 512 pixels in size
+            j += 1
+            print('\rCreating image pyramid: {j} from {n}'.format(j=j, n=n), end='')
+            w /= self.__reduction  # divide on reduction degree
+            h /= self.__reduction  # divide on reduction degree
+            self.pyramid.append(self.pyramid[-1].resize((int(w), int(h)), Image.LANCZOS))
         # These came from GIMP
-        self.scales = [1.5,2.0,3.0,4.0,5.5,8.0,11.0,16.0,
-                       23.0,32.0,45.0,64.0,90.0,128.0,180.0,256.0]
-        for scale in self.scales:
-            iw = int(w/scale)
-            ih = int(h/scale)
-            if iw > 0 and ih > 0:
-                self.pyramid.append(self.pyramid[-1].resize((iw,ih),Image.LANCZOS))
+        #self.scales = [1.5,2.0,3.0,4.0,5.5,8.0,11.0,16.0,
+        #               23.0,32.0,45.0,64.0,90.0,128.0,180.0,256.0]
+        #for scale in self.scales:
+        #    iw = int(w/scale)
+        #    ih = int(h/scale)
+        #    if iw > 0 and ih > 0:
+        #        self.pyramid.append(self.pyramid[-1].resize((iw,ih),Image.LANCZOS))
         
         #cc=1
         #for elem in self.pyramid:
@@ -138,10 +135,10 @@ class ScrollableImageFrame(ttk.Frame):
         x2 = min(box_canvas[2], box_image[2]) - box_image[0]
         y2 = min(box_canvas[3], box_image[3]) - box_image[1]
         if int(x2 - x1) > 0 and int(y2 - y1) > 0:  # show image if it in the visible area
-            croppedimage = self.pyramid[0].crop(
-                            (int(x1 / 1), int(y1 / 1),
-                             int(x2 / 1), int(y2 / 1)))
-            imagetk = ImageTk.PhotoImage(croppedimage)
+            croppedimage = self.pyramid[max(0, self.curr_img)].crop(
+                            (int(x1 / self.scale), int(y1 / self.scale),
+                             int(x2 / self.scale), int(y2 / self.scale)))
+            imagetk = ImageTk.PhotoImage(croppedimage.resize((int(x2 - x1), int(y2 - y1)), Image.LANCZOS))
             imageid = self.canvas.create_image(max(box_canvas[0], box_img_int[0]),
                                                max(box_canvas[1], box_img_int[1]),
                                                anchor='nw', image=imagetk)
@@ -170,26 +167,25 @@ class ScrollableImageFrame(ttk.Frame):
             return True  # point (x,y) is outside the image area
         
     def wheel(self, event):
-        return
         x = self.canvas.canvasx(event.x)  # get coordinates of the event on the canvas
         y = self.canvas.canvasy(event.y)
         if self.outside(x, y): return  # zoom only inside image area
-        print(event) #############
+        #print(event) #############
         scale = 1.0
         # Respond to Linux (event.num) or Windows (event.delta) wheel event
         if event.num == 5 or event.delta == -120:  # scroll down, zoom out, smaller
-            if round(self.__min_side * self.imscale) < 30: return  # image is less than 30 pixels
-            self.imscale /= self.__delta
-            scale        /= self.__delta
+            if round(self.min_side * self.imscale) < 30: return  # image is less than 30 pixels
+            self.imscale /= self.delta
+            scale        /= self.delta
         if event.num == 4 or event.delta == 120:  # scroll up, zoom in, bigger
             i = float(min(self.canvas.winfo_width(), self.canvas.winfo_height()) >> 1)
             if i < self.imscale: return  # 1 pixel is bigger than the visible area
-            self.imscale *= self.__delta
-            scale        *= self.__delta
+            self.imscale *= self.delta
+            scale        *= self.delta
         # Take appropriate image from the pyramid
-        k = self.imscale * self.__ratio  # temporary coefficient
-        self.__curr_img = min((-1) * int(math.log(k, self.__reduction)), len(self.__pyramid) - 1)
-        self.__scale = k * math.pow(self.__reduction, max(0, self.__curr_img))
+        k = self.imscale * self.ratio  # temporary coefficient
+        self.curr_img = min((-1) * int(math.log(k, self.reduction)), len(self.pyramid) - 1)
+        self.scale = k * math.pow(self.reduction, max(0, self.curr_img))
         #
         self.canvas.scale('all', x, y, scale, scale)  # rescale all objects
         # Redraw some figures before showing image on the screen
