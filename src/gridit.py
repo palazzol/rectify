@@ -1,12 +1,47 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename
-from tkinter.simpledialog import askfloat
+#from tkinter.simpledialog import askfloat
 from PIL import Image, ImageTk
 import math
 import asyncio
 from pynnex import with_emitters, emitter, listener
 from solver2 import NLLSSolver
+
+class UndoRedoAction:
+    def __init__(self, function, *args):
+        self.function = function
+        self.args = args
+    def execute(self):
+        self.function(*self.args)
+
+class UndoRedoManager:
+    def __init__(self):
+        self.undo_stack = []
+        self.redo_stack = []
+        self.undoing = False
+
+    def pushAction(self, action):
+        if self.undoing:
+            self.redo_stack.append(action)
+        else:
+            self.undo_stack.append(action)
+
+    def undo(self):
+        if self.undo_stack != []:
+            self.undoing = True
+            action = self.undo_stack.pop()
+            action.execute()
+            self.undoing = False
+        else:
+            print("Nothing to Undo!")
+
+    def redo(self):
+        if self.redo_stack != []:
+            action = self.redo_stack.pop()
+            action.execute()
+        else:
+            print("Nothing to Redo!")
 
 def print_hierarchy(widget, indent=0):
     """Prints the widget hierarchy starting from the given widget."""
@@ -35,12 +70,16 @@ class ConstraintGUI:
 
 class Marker:
     next_marker_id = 0
-    def __init__(self, image_x, image_y, mtype = 0):
-        self.id = Marker.next_marker_id
+    def __init__(self, image_x, image_y, id=id, mtype = 0):
+        if id == None:
+            self.id = Marker.next_marker_id
+        else:
+            self.id = id
         Marker.next_marker_id += 1
         self.mtype = mtype
         self.image_x = image_x
         self.image_y = image_y
+        self.prehighlighted = False
         self.selected = False
         self.xconstraints = []
         self.yconstraints = []
@@ -74,13 +113,14 @@ class ScrollableImageFrame(ttk.Frame):
         vbar.configure(command=self.scroll_y)
         # Bind events to the Canvas
         self.canvas.bind('<Configure>', lambda event: self.show_image())  # canvas is resized
+        #self.canvas.bind('<ButtonPress-1>', self.createMarker)
         self.canvas.bind('<ButtonPress-2>', self.panBegin)
-        self.canvas.bind('<ButtonPress-1>', self.createMarker)
         self.canvas.bind('<B2-Motion>', self.panEnd)
         self.canvas.bind('<MouseWheel>', self.wheel)  # zoom for Windows and MacOS, but not Linux
         self.canvas.bind('<Button-5>',   self.wheel)  # zoom for Linux, wheel scroll down
         self.canvas.bind('<Button-4>',   self.wheel)  # zoom for Linux, wheel scroll up
         self.canvas.bind('<Motion>', self.motion)
+        self.canvas.bind('<KeyRelease>', self.key)
         self.canvas.bind('<ButtonPress-3>', self.test)
         self.image = Image.open(path)
         self.imwidth, self.imheight = self.image.size
@@ -106,7 +146,7 @@ class ScrollableImageFrame(ttk.Frame):
         self.last_imageid = None
 
         self.markers = {}
-
+        self.undo_redo_manager = UndoRedoManager()
         self.solver = NLLSSolver()
         self.solver.emitcreateconstraint.connect(self, self.on_createconstraint)
         self.solver.emitdestroyconstraint.connect(self, self.on_destroyconstraint)
@@ -205,12 +245,12 @@ class ScrollableImageFrame(ttk.Frame):
         x_offs, y_offs = self.canvas.coords(self.last_imageid)
         x = coords[0]*self.imscale + x_offs - self.x1
         y = coords[1]*self.imscale + y_offs - self.y1
-        print(f'pick_c = {x_offs},{y_offs}')
-        print(f'image_c  = {self.x1},{self.y1}')
-        print(f'coords_i = {coords[0]},{coords[1]}') 
-        print(f'scale    = {self.imscale}')
-        print(f'xy_c     = {x},{y}')
-        print()
+        #print(f'pick_c = {x_offs},{y_offs}')
+        #print(f'image_c  = {self.x1},{self.y1}')
+        #print(f'coords_i = {coords[0]},{coords[1]}') 
+        #print(f'scale    = {self.imscale}')
+        #print(f'xy_c     = {x},{y}')
+        #print()
         return (x,y)
     
     def canvasDump(self):
@@ -283,25 +323,46 @@ class ScrollableImageFrame(ttk.Frame):
             self.canvas.create_line(xc, yc-r, xc, yc+r, fill='blue', tags = f'C{marker.id}')
             self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline='blue', tags = f'C{marker.id}')
 
-    def createMarker(self, event):
-        self.canvasDump()
-        if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
-            return
-        x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
-        marker = Marker(x,y)
-        self.createMarkerSymbol(marker)
+    def createMarker(self,x,y,id=None):
+        marker = Marker(x,y,id)
         self.markers[marker.id] = marker
+        self.createMarkerSymbol(marker)
+        print(f'Created Marker, id={marker.id}')
+        self.undo_redo_manager.pushAction(UndoRedoAction(self.deleteMarker, marker.id))
 
         #xw = askfloat("X coordinate", "X coordinate?", parent=self)
         #yw = askfloat("Y coordinate", "Y coordinate?", parent=self)
         #c = self.solver.CreateConstraint(x,y,xw,yw,emit=False)
         #T = self.solver.ComputeSolution()
     
+    def deleteMarker(self, id):
+        marker = self.markers[id]
+        id,x,y = marker.id, marker.image_x, marker.image_y
+        self.markers.pop(id)
+        items = self.canvas.find_withtag(f'C{id}')
+        for item in items:
+            self.canvas.delete(item)
+        print(f'Deleted Marker, id={id}')
+        self.undo_redo_manager.pushAction(UndoRedoAction(self.createMarker, x, y, id))
+
     def on_createconstraint(self,c):
         print('Got create signal')
 
     def on_destroyconstraint(self,c):
         print('Got destroy signal')
+
+    def key(self, event):
+        if event.char == 'm' or event.char == 'M':
+            #self.canvasDump()
+            if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
+                return
+            x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
+            self.createMarker(x,y)
+        elif event.char == 'z':
+            self.undo_redo_manager.undo()
+        elif event.char == 'y':
+            self.undo_redo_manager.redo()
+        #print(event)
 
     def test(self, event):
         self.updateMarkers()
