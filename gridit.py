@@ -1,8 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename
+from tkinter.simpledialog import askfloat
 from PIL import Image, ImageTk
 import math
+import asyncio
+from pynnex import with_emitters, emitter, listener
+from solver2 import NLLSSolver
 
 def print_hierarchy(widget, indent=0):
     """Prints the widget hierarchy starting from the given widget."""
@@ -19,7 +23,34 @@ class AutoScrollbar(ttk.Scrollbar):
             self.grid()
             ttk.Scrollbar.set(self, lo, hi)
 
+'''
+class ConstraintGUI:
+    def __init__(self, id):
+        self.id = id
+    def setConstraint(self, c):
+        self.c = c
+    def getConstraint(self, c):
+        return c
+'''
+
+class Marker:
+    next_marker_id = 0
+    def __init__(self, image_x, image_y, mtype = 0):
+        self.id = Marker.next_marker_id
+        Marker.next_marker_id += 1
+        self.mtype = mtype
+        self.image_x = image_x
+        self.image_y = image_y
+        self.selected = False
+        self.xconstraints = []
+        self.yconstraints = []
+
+class ConstraintX:
+    next_constraint_id = 0
+    def __init__(self, markerlist, )
+
 class ScrollableImageFrame(ttk.Frame):
+    @listener
     def __init__(self, parent, path, *args, **kwargs):
         super(ScrollableImageFrame, self).__init__(parent, *args, **kwargs)
         
@@ -30,7 +61,7 @@ class ScrollableImageFrame(ttk.Frame):
         self.parent = parent
         self.path = path
         self.imscale = 1.0  # scale for the canvas image zoom, public for outer classes
-        self.delta = 1.3  # zoom magnitude
+        self.delta = 1.25  # zoom magnitude
         # Initialize Widgets
         # Scrollbars
         hbar = AutoScrollbar(self, orient="horizontal")
@@ -48,11 +79,13 @@ class ScrollableImageFrame(ttk.Frame):
         # Bind events to the Canvas
         self.canvas.bind('<Configure>', lambda event: self.show_image())  # canvas is resized
         self.canvas.bind('<ButtonPress-2>', self.panBegin)
+        self.canvas.bind('<ButtonPress-1>', self.createMarker)
         self.canvas.bind('<B2-Motion>', self.panEnd)
         self.canvas.bind('<MouseWheel>', self.wheel)  # zoom for Windows and MacOS, but not Linux
         self.canvas.bind('<Button-5>',   self.wheel)  # zoom for Linux, wheel scroll down
         self.canvas.bind('<Button-4>',   self.wheel)  # zoom for Linux, wheel scroll up
-        #self.canvas.bind('<Motion>', self.motion)
+        self.canvas.bind('<Motion>', self.motion)
+        self.canvas.bind('<ButtonPress-3>', self.test)
         self.image = Image.open(path)
         self.imwidth, self.imheight = self.image.size
         self.min_side = min(self.imwidth, self.imheight)
@@ -65,13 +98,23 @@ class ScrollableImageFrame(ttk.Frame):
         self.scale = self.imscale * self.ratio
         self.reduction = 2  # reduction degree of image pyramid
         (w, h), m, j = self.pyramid[-1].size, 512, 0
+        #print(w,h)
         n = math.ceil(math.log(min(w, h) / m, self.reduction)) + 1  # image pyramid length
         while w > m and h > m:  # top pyramid image is around 512 pixels in size
             j += 1
-            print('\rCreating image pyramid: {j} from {n}'.format(j=j, n=n), end='')
-            w /= self.__reduction  # divide on reduction degree
-            h /= self.__reduction  # divide on reduction degree
+            print('Creating image pyramid: {j} from {n}'.format(j=j, n=n))
+            w /= self.reduction  # divide on reduction degree
+            h /= self.reduction  # divide on reduction degree
             self.pyramid.append(self.pyramid[-1].resize((int(w), int(h)), Image.LANCZOS))
+            print(w,h)
+        self.last_imageid = None
+
+        self.markers = {}
+
+        self.solver = NLLSSolver()
+        self.solver.emitcreateconstraint.connect(self, self.on_createconstraint)
+        self.solver.emitdestroyconstraint.connect(self, self.on_destroyconstraint)
+
         # These came from GIMP
         #self.scales = [1.5,2.0,3.0,4.0,5.5,8.0,11.0,16.0,
         #               23.0,32.0,45.0,64.0,90.0,128.0,180.0,256.0]
@@ -87,7 +130,8 @@ class ScrollableImageFrame(ttk.Frame):
         #    cc+=1
 
         # Put image into container rectangle and use it to set proper coordinates to the image
-        self.container = self.canvas.create_rectangle((0, 0, self.imwidth, self.imheight), width=0)
+        self.container = self.canvas.create_rectangle((0, 0, self.imwidth, self.imheight), width=0, tag='rect')
+        print(f'self.container = {self.container}')
         self.show_image()
         self.canvas.focus_set()
 
@@ -141,13 +185,44 @@ class ScrollableImageFrame(ttk.Frame):
             imagetk = ImageTk.PhotoImage(croppedimage.resize((int(x2 - x1), int(y2 - y1)), Image.LANCZOS))
             imageid = self.canvas.create_image(max(box_canvas[0], box_img_int[0]),
                                                max(box_canvas[1], box_img_int[1]),
-                                               anchor='nw', image=imagetk)
+                                               anchor='nw', image=imagetk, tag='image')
+            self.x1 = x1
+            self.y1 = y1
+            if self.last_imageid:
+                self.canvas.delete(self.last_imageid)
+            self.last_imageid = imageid
             self.canvas.lower(imageid)  # set image into background
             self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
 
     def motion(self, event):
         if not self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
-            print(f'{self.canvas.canvasx(event.x)} {self.canvas.canvasy(event.y)}' )
+            x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
+            #print(f'x,y: {x},{y}')
+
+    def canvasToImage(self, coords):
+        x_offs, y_offs = self.canvas.coords(self.last_imageid)
+        x = (coords[0] - x_offs + self.x1)/self.imscale
+        y = (coords[1] - y_offs + self.y1)/self.imscale
+        return (x,y)
+    
+    def ImageToCanvas(self, coords):
+        x_offs, y_offs = self.canvas.coords(self.last_imageid)
+        x = coords[0]*self.imscale + x_offs - self.x1
+        y = coords[1]*self.imscale + y_offs - self.y1
+        print(f'pick_c = {x_offs},{y_offs}')
+        print(f'image_c  = {self.x1},{self.y1}')
+        print(f'coords_i = {coords[0]},{coords[1]}') 
+        print(f'scale    = {self.imscale}')
+        print(f'xy_c     = {x},{y}')
+        print()
+        return (x,y)
+    
+    def canvasDump(self):
+        all_item_ids = self.canvas.find_all()
+        for item_id in all_item_ids:
+            item_type = self.canvas.type(item_id)
+            tags = self.canvas.gettags(item_id)
+            print(f"Item ID: {item_id}, Type: {item_type}, Tags: {tags}")
 
     def panBegin(self, event):
         """ Remember previous coordinates for scrolling with the mouse """
@@ -187,9 +262,53 @@ class ScrollableImageFrame(ttk.Frame):
         self.curr_img = min((-1) * int(math.log(k, self.reduction)), len(self.pyramid) - 1)
         self.scale = k * math.pow(self.reduction, max(0, self.curr_img))
         #
-        self.canvas.scale('all', x, y, scale, scale)  # rescale all objects
+        print(f'Scaling... {scale}')
+        self.canvas.scale('image', x, y, scale, scale)
+        self.canvas.scale('rect', x, y, scale, scale)
+        self.show_image()
+        self.updateMarkers()
         # Redraw some figures before showing image on the screen
         ##self.redraw_figures()  # method for child classes
+        self.show_image()
+
+    def updateMarkers(self):
+        # move marker items to new locations
+        for id in self.markers:
+            items = self.canvas.find_withtag(f'C{id}')
+            for item in items:
+                self.canvas.delete(item)
+            self.createMarkerSymbol(self.markers[id])
+    
+    def createMarkerSymbol(self,marker):
+        r = 10
+        xc, yc = self.ImageToCanvas([marker.image_x, marker.image_y])
+        if marker.mtype == 0:
+            self.canvas.create_line(xc-r, yc, xc+r, yc, fill='blue', tags = f'C{marker.id}')
+            self.canvas.create_line(xc, yc-r, xc, yc+r, fill='blue', tags = f'C{marker.id}')
+            self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline='blue', tags = f'C{marker.id}')
+
+    def createMarker(self, event):
+        self.canvasDump()
+        if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
+            return
+        x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
+        marker = Marker(x,y)
+        self.createMarkerSymbol(marker)
+        self.markers[marker.id] = marker
+
+        #xw = askfloat("X coordinate", "X coordinate?", parent=self)
+        #yw = askfloat("Y coordinate", "Y coordinate?", parent=self)
+        #c = self.solver.CreateConstraint(x,y,xw,yw,emit=False)
+        #T = self.solver.ComputeSolution()
+    
+    def on_createconstraint(self,c):
+        print('Got create signal')
+
+    def on_destroyconstraint(self,c):
+        print('Got destroy signal')
+
+    def test(self, event):
+        self.updateMarkers()
         self.show_image()
 
 class App(ttk.Frame):
@@ -274,5 +393,8 @@ class App(ttk.Frame):
         self.close_image()
         self.quit()
 
+async def main():
+    App()
+
 if __name__ == '__main__':
-    App()  # start the application
+    asyncio.run(main())  # start the application
