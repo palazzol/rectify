@@ -45,10 +45,6 @@ class Marker:
         self.xconstraints = []
         self.yconstraints = []
 
-class ConstraintX:
-    next_constraint_id = 0
-    def __init__(self, markerlist, )
-
 class ScrollableImageFrame(ttk.Frame):
     @listener
     def __init__(self, parent, path, *args, **kwargs):
