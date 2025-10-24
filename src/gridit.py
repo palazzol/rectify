@@ -79,6 +79,13 @@ class ScrollableImageFrame(ttk.Frame):
         self.canvas.update()  # wait till canvas is created
         hbar.configure(command=self.scroll_x)
         vbar.configure(command=self.scroll_y)
+
+        self.context_menu = tk.Menu(self, tearoff=0)
+        self.context_menu.add_command(label="Create Marker",
+                                      command = self.createMarkerAtClickPoint)
+        self.context_menu.add_command(label="Delete Marker",
+                                      command = self.deleteMarkerAtClickPoint)
+
         # Bind events to the Canvas
         # Resize
         self.canvas.bind('<Configure>', lambda event: self.show_image())  # canvas is resized
@@ -95,8 +102,8 @@ class ScrollableImageFrame(ttk.Frame):
         self.canvas.bind('<Motion>', self.motion)
         # Keys
         self.canvas.bind('<KeyRelease>', self.key)
-        # Other
-        self.canvas.bind('<ButtonPress-3>', self.test)
+        # Context Menu
+        self.canvas.bind('<ButtonPress-3>', self.popup)
 
         self.image = Image.open(path)
         self.imwidth, self.imheight = self.image.size
@@ -159,6 +166,15 @@ class ScrollableImageFrame(ttk.Frame):
         super().grid(sticky='nswe')  # make frame container sticky
         super().rowconfigure(0, weight=1)  # make canvas expandable
         super().columnconfigure(0, weight=1)
+
+    def popup(self, event):
+        x = self.canvas.canvasx(event.x)  # get coordinates of the event on the canvas
+        y = self.canvas.canvasy(event.y)
+        if self.outside(x, y): return  # popup only inside image area
+        self.click_x, self.click_y = x,y
+        # TBD - do pick here, if marker found only show delete, if not only show create
+        self.context_menu.entryconfigure('Delete Marker', state=tk.DISABLED)
+        self.context_menu.tk_popup(event.x_root, event.y_root, 0)
 
     # noinspection PyUnusedLocal
     def scroll_x(self, *args, **kwargs):
@@ -344,7 +360,8 @@ class ScrollableImageFrame(ttk.Frame):
                 self.canvas.create_oval(xc-r-2, yc-r-2, xc+r+2, yc+r+2, width=3, outline='yellow', tags = markertags)
             self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline='blue', tags = markertags)
             tagsmask = markertags + ('Tmask',)
-            i = self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline='red', fill='red', tags = tagsmask)
+            bgcolor = self.canvas.cget('bg')
+            i = self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline=bgcolor, fill=bgcolor, tags = tagsmask)
             self.canvas.tag_lower(i)
 
     def createMarker(self,x,y,id=None):
@@ -377,22 +394,26 @@ class ScrollableImageFrame(ttk.Frame):
     def on_destroyconstraint(self,c):
         print('Got destroy signal')
 
+    def on_createMarker(self,event):
+        if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
+            return
+        self.click_x,self.click_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        self.createMarkerAtClickPoint()
+
+    def createMarkerAtClickPoint(self):
+        self.createMarker(self.click_x, self.click_y)
+
+    def deleteMarkerAtClickPoint(self):
+        pass
+
     def key(self, event):
         if event.char == 'm' or event.char == 'M':
-            #self.canvasDump()
-            if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
-                return
-            x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
-            self.createMarker(x,y)
+            self.on_createMarker(event)
         elif event.char == 'z':
             self.undo_redo_manager.undo()
         elif event.char == 'y':
             self.undo_redo_manager.redo()
         #print(event)
-
-    def test(self, event):
-        self.updateMarkers()
-        self.show_image()
 
 class App(ttk.Frame):
     def __init__(self):
