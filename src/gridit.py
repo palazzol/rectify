@@ -401,7 +401,8 @@ class ScrollableImageFrame(ttk.Frame):
         self.createMarkerAtClickPoint()
 
     def createMarkerAtClickPoint(self):
-        self.createMarker(self.click_x, self.click_y)
+        image_x, image_y = self.canvasToImage((self.click_x,self.click_y))
+        self.createMarker(image_x, image_y)
 
     def deleteMarkerAtClickPoint(self):
         pass
