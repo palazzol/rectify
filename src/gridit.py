@@ -24,15 +24,19 @@ class AutoScrollbar(ttk.Scrollbar):
             self.grid()
             ttk.Scrollbar.set(self, lo, hi)
 
-'''
-class ConstraintGUI:
-    def __init__(self, id):
-        self.id = id
-    def setConstraint(self, c):
-        self.c = c
-    def getConstraint(self, c):
-        return c
-'''
+# Tag helper functions:
+def tagsHaveType(tags,tagstring):
+    for tag in tags:
+        if tag.startswith('T'+tagstring):
+            return True
+    return False
+
+def tagsGetValue(tags,tagstring):
+    for tag in tags:
+        prefix = 'T'+tagstring+':'
+        if tag.startswith(prefix):
+            return tag[len(prefix):]
+    return ''
 
 class Marker:
     next_marker_id = 0
@@ -45,8 +49,6 @@ class Marker:
         self.mtype = mtype
         self.image_x = image_x
         self.image_y = image_y
-        self.prehighlighted = False
-        self.selected = False
         self.xconstraints = []
         self.yconstraints = []
 
@@ -78,16 +80,24 @@ class ScrollableImageFrame(ttk.Frame):
         hbar.configure(command=self.scroll_x)
         vbar.configure(command=self.scroll_y)
         # Bind events to the Canvas
+        # Resize
         self.canvas.bind('<Configure>', lambda event: self.show_image())  # canvas is resized
+        # Selection
         #self.canvas.bind('<ButtonPress-1>', self.createMarker)
+        # Panning
         self.canvas.bind('<ButtonPress-2>', self.panBegin)
         self.canvas.bind('<B2-Motion>', self.panEnd)
+        # Zooming
         self.canvas.bind('<MouseWheel>', self.wheel)  # zoom for Windows and MacOS, but not Linux
         self.canvas.bind('<Button-5>',   self.wheel)  # zoom for Linux, wheel scroll down
         self.canvas.bind('<Button-4>',   self.wheel)  # zoom for Linux, wheel scroll up
+        # Mouse
         self.canvas.bind('<Motion>', self.motion)
+        # Keys
         self.canvas.bind('<KeyRelease>', self.key)
+        # Other
         self.canvas.bind('<ButtonPress-3>', self.test)
+
         self.image = Image.open(path)
         self.imwidth, self.imheight = self.image.size
         self.min_side = min(self.imwidth, self.imheight)
@@ -111,8 +121,14 @@ class ScrollableImageFrame(ttk.Frame):
             print(w,h)
         self.last_imageid = None
 
-        self.markers = {}
+        self.markers = {}   # Marker IDs and Marker Objects here
+        self.highlighted_items = []
+        self.prehighlighted_items = []
+
+        # Undo/Redo
         self.undo_redo_manager = UndoRedoManager()
+
+        # Solver and Solver signals
         self.solver = NLLSSolver()
         self.solver.emitcreateconstraint.connect(self, self.on_createconstraint)
         self.solver.emitdestroyconstraint.connect(self, self.on_destroyconstraint)
@@ -132,8 +148,8 @@ class ScrollableImageFrame(ttk.Frame):
         #    cc+=1
 
         # Put image into container rectangle and use it to set proper coordinates to the image
-        self.container = self.canvas.create_rectangle((0, 0, self.imwidth, self.imheight), width=0, tag='rect')
-        print(f'self.container = {self.container}')
+        self.container = self.canvas.create_rectangle((0, 0, self.imwidth, self.imheight), width=0, tag='Tcode:rect')
+        #print(f'self.container = {self.container}')
         self.show_image()
         self.canvas.focus_set()
 
@@ -187,19 +203,51 @@ class ScrollableImageFrame(ttk.Frame):
             imagetk = ImageTk.PhotoImage(croppedimage.resize((int(x2 - x1), int(y2 - y1)), Image.LANCZOS))
             imageid = self.canvas.create_image(max(box_canvas[0], box_img_int[0]),
                                                max(box_canvas[1], box_img_int[1]),
-                                               anchor='nw', image=imagetk, tag='image')
+                                               anchor='nw', image=imagetk, tag='Tcode:image')
             self.x1 = x1
             self.y1 = y1
             if self.last_imageid:
                 self.canvas.delete(self.last_imageid)
             self.last_imageid = imageid
             self.canvas.lower(imageid)  # set image into background
+            masks = self.canvas.find_withtag('Tmask')
+            for item in masks:
+                self.canvas.lower(item) # masks go behind everything
             self.canvas.imagetk = imagetk  # keep an extra reference to prevent garbage-collection
 
+    def prehighlightMarker(self, markerid):
+        if markerid in self.prehighlighted_items:
+            return
+        self.unprehighlight()
+        self.prehighlighted_items = [ markerid ]
+        self.updateMarker(markerid)
+
+    def unprehighlight(self):
+        ids = self.prehighlighted_items.copy()
+        self.prehighlighted_items = []
+        for id in ids:
+            self.updateMarker(id)
+            
     def motion(self, event):
-        if not self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
-            x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
-            #print(f'x,y: {x},{y}')
+        if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
+            return
+        #x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
+        x,y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        #print(self.canvas.find_withtag("current"))
+        ids = self.canvas.find_overlapping(x, y, x, y)
+        print(ids)
+        if len(ids) > 0:
+            bottomid = ids[0]
+            tags = self.canvas.gettags(bottomid)
+            if tagsHaveType(tags,'mask'):
+                print('hit mask')
+                if tagsGetValue(tags,'code') == 'marker':
+                    markerid = int(tagsGetValue(tags, 'id'))
+                    print('marker id = {markerid}')
+                    marker = self.markers[markerid]
+                    self.prehighlightMarker(markerid)
+            else:
+                self.unprehighlight()
 
     def canvasToImage(self, coords):
         x_offs, y_offs = self.canvas.coords(self.last_imageid)
@@ -247,7 +295,7 @@ class ScrollableImageFrame(ttk.Frame):
         x = self.canvas.canvasx(event.x)  # get coordinates of the event on the canvas
         y = self.canvas.canvasy(event.y)
         if self.outside(x, y): return  # zoom only inside image area
-        #print(event) #############
+        #print(event)
         scale = 1.0
         # Respond to Linux (event.num) or Windows (event.delta) wheel event
         if event.num == 5 or event.delta == -120:  # scroll down, zoom out, smaller
@@ -264,30 +312,40 @@ class ScrollableImageFrame(ttk.Frame):
         self.curr_img = min((-1) * int(math.log(k, self.reduction)), len(self.pyramid) - 1)
         self.scale = k * math.pow(self.reduction, max(0, self.curr_img))
         #
-        print(f'Scaling... {scale}')
-        self.canvas.scale('image', x, y, scale, scale)
-        self.canvas.scale('rect', x, y, scale, scale)
+        #print(f'Scaling... {scale}')
+        self.canvas.scale('Tcode:image', x, y, scale, scale)
+        self.canvas.scale('Tcode:rect', x, y, scale, scale)
         self.show_image()
         self.updateMarkers()
         # Redraw some figures before showing image on the screen
         ##self.redraw_figures()  # method for child classes
         self.show_image()
+    
+    def updateMarker(self, id):
+        items = self.canvas.find_withtag(f'Tid:{id}')
+        for item in items:
+            print(f'deleted item {item}')
+            self.canvas.delete(item)
+        self.createMarkerSymbol(self.markers[id])
 
     def updateMarkers(self):
         # move marker items to new locations
         for id in self.markers:
-            items = self.canvas.find_withtag(f'C{id}')
-            for item in items:
-                self.canvas.delete(item)
-            self.createMarkerSymbol(self.markers[id])
-    
+            self.updateMarker(id)
+
     def createMarkerSymbol(self,marker):
         r = 10
         xc, yc = self.ImageToCanvas([marker.image_x, marker.image_y])
         if marker.mtype == 0:
-            self.canvas.create_line(xc-r, yc, xc+r, yc, fill='blue', tags = f'C{marker.id}')
-            self.canvas.create_line(xc, yc-r, xc, yc+r, fill='blue', tags = f'C{marker.id}')
-            self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline='blue', tags = f'C{marker.id}')
+            markertags = (f'Tcode:marker',f'Tid:{marker.id}')
+            self.canvas.create_line(xc-r, yc, xc+r, yc, fill='blue', tags = markertags)
+            self.canvas.create_line(xc, yc-r, xc, yc+r, fill='blue', tags = markertags)
+            if marker.id in self.prehighlighted_items:
+                self.canvas.create_oval(xc-r-2, yc-r-2, xc+r+2, yc+r+2, width=3, outline='yellow', tags = markertags)
+            self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline='blue', tags = markertags)
+            tagsmask = markertags + ('Tmask',)
+            i = self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline='red', fill='red', tags = tagsmask)
+            self.canvas.tag_lower(i)
 
     def createMarker(self,x,y,id=None):
         marker = Marker(x,y,id)
@@ -302,10 +360,12 @@ class ScrollableImageFrame(ttk.Frame):
         #T = self.solver.ComputeSolution()
     
     def deleteMarker(self, id):
+        if id in self.prehighlighted_items:
+            self.unprehighlight()
         marker = self.markers[id]
         id,x,y = marker.id, marker.image_x, marker.image_y
         self.markers.pop(id)
-        items = self.canvas.find_withtag(f'C{id}')
+        items = self.canvas.find_withtag(f'Tid:{id}')
         for item in items:
             self.canvas.delete(item)
         print(f'Deleted Marker, id={id}')
