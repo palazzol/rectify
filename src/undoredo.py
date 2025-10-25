@@ -2,18 +2,19 @@
 class UndoRedoManager:
 
     class UndoRedoAction:
-        def __init__(self, function, *args):
+        def __init__(self, function, *args, **kwargs):
             self.function = function
             self.args = args
+            self.kwargs = kwargs
         def execute(self):
-            self.function(*self.args)
+            self.function(*self.args, **self.kwargs)
 
     def __init__(self):
         self.undo_stack = []
         self.redo_stack = []
 
-    def pushAction(self, function, *args):
-        action = UndoRedoManager.UndoRedoAction(function, *args)
+    def pushAction(self, function, *args, **kwargs):
+        action = UndoRedoManager.UndoRedoAction(function, *args, **kwargs)
         # This is the logic for executing a push outside of undo() or redo()
         # but I have saved the redo_stack in case we are in undo() or redo(),
         # if so, we will fix this during the end of undo() or redo()
