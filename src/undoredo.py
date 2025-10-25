@@ -1,7 +1,15 @@
 
+#
+#  Action-based Undo/Redo
+#
+# If you want to create an undoable operation, simply write your code.
+# At the end, call pushAction() with the function and args needed to undo the function
+#
+# A call to undo() or redo() will trigger the proper stored functions
+#
 class UndoRedoManager:
 
-    class UndoRedoAction:
+    class Action:
         def __init__(self, function, *args, **kwargs):
             self.function = function
             self.args = args
@@ -10,11 +18,15 @@ class UndoRedoManager:
             self.function(*self.args, **self.kwargs)
 
     def __init__(self):
-        self.undo_stack = []
-        self.redo_stack = []
+        self.reset()
+
+    def reset(self):
+        self.undo_stack: list[UndoRedoManager.Action] = []
+        self.redo_stack: list[UndoRedoManager.Action] = []
+        self.temp_stack: list[UndoRedoManager.Action] = []
 
     def pushAction(self, function, *args, **kwargs):
-        action = UndoRedoManager.UndoRedoAction(function, *args, **kwargs)
+        action = UndoRedoManager.Action(function, *args, **kwargs)
         # This is the logic for executing a push outside of undo() or redo()
         # but I have saved the redo_stack in case we are in undo() or redo(),
         # if so, we will fix this during the end of undo() or redo()
