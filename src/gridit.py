@@ -7,7 +7,7 @@ import math
 import asyncio
 from pynnex import with_emitters, emitter, listener
 from solver2 import NLLSSolver
-from undoredo import UndoRedoAction, UndoRedoManager
+from undoredo import UndoRedoManager
 
 def print_hierarchy(widget, indent=0):
     """Prints the widget hierarchy starting from the given widget."""
@@ -369,7 +369,7 @@ class ScrollableImageFrame(ttk.Frame):
         self.markers[marker.id] = marker
         self.createMarkerSymbol(marker)
         print(f'Created Marker, id={marker.id}')
-        self.undo_redo_manager.pushAction(UndoRedoAction(self.deleteMarker, marker.id))
+        self.undo_redo_manager.pushAction(self.deleteMarker, marker.id)
 
         #xw = askfloat("X coordinate", "X coordinate?", parent=self)
         #yw = askfloat("Y coordinate", "Y coordinate?", parent=self)
@@ -386,7 +386,7 @@ class ScrollableImageFrame(ttk.Frame):
         for item in items:
             self.canvas.delete(item)
         print(f'Deleted Marker, id={id}')
-        self.undo_redo_manager.pushAction(UndoRedoAction(self.createMarker, x, y, id))
+        self.undo_redo_manager.pushAction(self.createMarker, x, y, id)
 
     def on_createconstraint(self,c):
         print('Got create signal')
