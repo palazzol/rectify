@@ -251,15 +251,15 @@ class ScrollableImageFrame(ttk.Frame):
         x,y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
         #print(self.canvas.find_withtag("current"))
         ids = self.canvas.find_overlapping(x, y, x, y)
-        print(ids)
+        #print(ids)
         if len(ids) > 0:
             bottomid = ids[0]
             tags = self.canvas.gettags(bottomid)
             if tagsHaveType(tags,'mask'):
-                print('hit mask')
+                #print('hit mask')
                 if tagsGetValue(tags,'code') == 'marker':
                     markerid = int(tagsGetValue(tags, 'id'))
-                    print('marker id = {markerid}')
+                    #print('marker id = {markerid}')
                     marker = self.markers[markerid]
                     self.prehighlightMarker(markerid)
             else:
@@ -340,7 +340,7 @@ class ScrollableImageFrame(ttk.Frame):
     def updateMarker(self, id):
         items = self.canvas.find_withtag(f'Tid:{id}')
         for item in items:
-            print(f'deleted item {item}')
+            #print(f'deleted item {item}')
             self.canvas.delete(item)
         self.createMarkerSymbol(self.markers[id])
 
