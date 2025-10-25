@@ -10,10 +10,15 @@ class UndoRedoManager:
     def __init__(self):
         self.undo_stack = []
         self.redo_stack = []
+        # state has three possible values
+        # it is used during pushAction() to determine where it's being called.
+        # This may need to be updated if actions are handled recursively in the future
         self.state = 'D'
 
     def pushAction(self, action):
-        print(f'Adding action during {self.state}')
+        # 'D' - pushAction() is executing outside of undo() or redo()
+        # 'U' - pushAction() is executing during undo()
+        # 'R' - pushAction() is executing during redo()
         if self.state == 'U':
             self.redo_stack.append(action)
         elif self.state == 'D':
@@ -23,22 +28,20 @@ class UndoRedoManager:
             self.undo_stack.append(action)
 
     def undo(self):
-        print(f'Undo during {self.state}')
+        self.state = 'U'
         if self.undo_stack != []:
-            self.state = 'U'
             action = self.undo_stack.pop()
             action.execute()
-            self.state = 'D'
         else:
             print("Nothing to Undo!")
+        self.state = 'D'
 
     def redo(self):
-        print(f'Redo during {self.state}')
+        self.state = 'R'
         if self.redo_stack != []:
-            self.state = 'R'
             action = self.redo_stack.pop()
             action.execute()
-            self.state = 'D'
         else:
             print("Nothing to Redo!")
+        self.state = 'D'
 
