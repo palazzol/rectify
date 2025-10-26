@@ -370,7 +370,6 @@ class ScrollableImageFrame(ttk.Frame):
         self.createMarkerSymbol(marker)
         print(f'Created Marker, id={marker.id}')
         self.undo_redo_manager.pushAction(self.deleteMarker, marker.id)
-
         #xw = askfloat("X coordinate", "X coordinate?", parent=self)
         #yw = askfloat("Y coordinate", "Y coordinate?", parent=self)
         #c = self.solver.CreateConstraint(x,y,xw,yw,emit=False)
@@ -387,6 +386,7 @@ class ScrollableImageFrame(ttk.Frame):
             self.canvas.delete(item)
         print(f'Deleted Marker, id={id}')
         self.undo_redo_manager.pushAction(self.createMarker, x, y, id)
+        self.undo_redo_manager.pushEndMark()
 
     def on_createconstraint(self,c):
         print('Got create signal')
@@ -403,6 +403,7 @@ class ScrollableImageFrame(ttk.Frame):
     def createMarkerAtClickPoint(self):
         image_x, image_y = self.canvasToImage((self.click_x,self.click_y))
         self.createMarker(image_x, image_y)
+        self.undo_redo_manager.pushEndMark()
 
     def deleteMarkerAtClickPoint(self):
         pass
