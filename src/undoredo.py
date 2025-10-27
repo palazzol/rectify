@@ -68,6 +68,9 @@ class UndoRedoManager:
                 return
             done = False
             while not done:
+                if stack == []:
+                    print(f'Error {opname}ing with no Action!')
+                    return
                 if stack[-1].function == UndoRedoManager.__endMarkFunction:
                     done = True
                 else:
