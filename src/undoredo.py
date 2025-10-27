@@ -64,21 +64,19 @@ class UndoRedoManager:
         if stack != []:
             action = stack.pop()
             if action.function != UndoRedoManager.__endMarkFunction:
-                print(f"Error {opname}ing without Mark!")
+                print(f'Error {opname}ing without Mark!')
                 return
             done = False
             while not done:
-                action = stack.pop()
-                if action.function == UndoRedoManager.__endMarkFunction:
-                    stack.append(action)
+                if stack[-1].function == UndoRedoManager.__endMarkFunction:
                     done = True
                 else:
-                    action.execute()
+                    stack.pop().execute()
                     if stack == []:
                         done = True
             self.pushAction(UndoRedoManager.__endMarkFunction)
         else:
-            print(f"Nothing to {opname}!")
+            print(f'Nothing to {opname}!')
         self.mode = UndoRedoManager.Mode.DOING
 
 
