@@ -47,6 +47,9 @@ class UndoRedoManager:
 
     def pushEndMark(self):
         if self.mode == UndoRedoManager.Mode.DOING:
+            if self.undo_stack != []:
+                if self.undo_stack[-1].function == UndoRedoManager.__endMarkFunction:
+                    print('Error: pushEndMark without Action')
             self.pushAction(UndoRedoManager.__endMarkFunction)
 
     def undo(self):
@@ -64,12 +67,12 @@ class UndoRedoManager:
         if stack != []:
             action = stack.pop()
             if action.function != UndoRedoManager.__endMarkFunction:
-                print(f'Error {opname}ing without Mark!')
+                print(f'Error: {opname}ing without Mark!')
                 return
             done = False
             while not done:
                 if stack == []:
-                    print(f'Error {opname}ing with no Action!')
+                    print(f'Error: {opname}ing with no Action!')
                     return
                 if stack[-1].function == UndoRedoManager.__endMarkFunction:
                     done = True

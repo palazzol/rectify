@@ -8,6 +8,7 @@ import asyncio
 from pynnex import with_emitters, emitter, listener
 from solver2 import NLLSSolver
 from undoredo import UndoRedoManager
+from configparser import ConfigParser
 
 def print_hierarchy(widget, indent=0):
     """Prints the widget hierarchy starting from the given widget."""
@@ -54,13 +55,14 @@ class Marker:
 
 class ScrollableImageFrame(ttk.Frame):
     @listener
-    def __init__(self, parent, path, *args, **kwargs):
+    def __init__(self, parent, app, path, *args, **kwargs):
         super(ScrollableImageFrame, self).__init__(parent, *args, **kwargs)
         
         #s=ttk.Style()
         #s.configure('yellow.TFrame', background='yellow')
         #self.configure(style='yellow.TFrame')
 
+        self.app = app
         self.parent = parent
         self.path = path
         self.imscale = 1.0  # scale for the canvas image zoom, public for outer classes
@@ -172,8 +174,14 @@ class ScrollableImageFrame(ttk.Frame):
         y = self.canvas.canvasy(event.y)
         if self.outside(x, y): return  # popup only inside image area
         self.click_x, self.click_y = x,y
-        # TBD - do pick here, if marker found only show delete, if not only show create
-        self.context_menu.entryconfigure('Delete Marker', state=tk.DISABLED)
+        # TBD - only do this pick once
+        idlist = self.pickItem(self.click_x,self.click_y,'marker')
+        if idlist == []:
+            self.context_menu.entryconfigure('Create Marker', state=tk.ACTIVE)
+            self.context_menu.entryconfigure('Delete Marker', state=tk.DISABLED)
+        else:
+            self.context_menu.entryconfigure('Create Marker', state=tk.DISABLED)
+            self.context_menu.entryconfigure('Delete Marker', state=tk.ACTIVE)
         self.context_menu.tk_popup(event.x_root, event.y_root, 0)
 
     # noinspection PyUnusedLocal
@@ -243,26 +251,41 @@ class ScrollableImageFrame(ttk.Frame):
         self.prehighlighted_items = []
         for id in ids:
             self.updateMarker(id)
-            
+    
+    def pickItems(self,x,y,itemtype,singleitem = False):
+        idlist = []
+        items = self.canvas.find_overlapping(x, y, x, y)
+        if len(items) > 0:
+            for item in items:  # Starts at bottom
+                tags = self.canvas.gettags(item)
+                if not tagsHaveType(tags,'mask'):
+                    break
+                if tagsGetValue(tags,'code') == itemtype:
+                    id = int(tagsGetValue(tags, 'id'))
+                    idlist.append(id)
+                    if singleitem:
+                        break
+        return idlist
+    
+    def pickItem(self,x,y,itemtype):
+        return self.pickItems(x,y,itemtype,True)
+
     def motion(self, event):
         if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
             return
         #x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
         x,y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
         #print(self.canvas.find_withtag("current"))
-        ids = self.canvas.find_overlapping(x, y, x, y)
-        #print(ids)
-        if len(ids) > 0:
-            bottomid = ids[0]
-            tags = self.canvas.gettags(bottomid)
-            if tagsHaveType(tags,'mask'):
-                #print('hit mask')
-                if tagsGetValue(tags,'code') == 'marker':
-                    markerid = int(tagsGetValue(tags, 'id'))
-                    #print('marker id = {markerid}')
-                    marker = self.markers[markerid]
-                    self.prehighlightMarker(markerid)
+        idlist = self.pickItem(x,y,'marker')
+        if idlist != []:
+            id = idlist[0]
+            if id in self.prehighlighted_items:
+                return
             else:
+                self.unprehighlight()
+                self.prehighlightMarker(id)
+        else:
+            if self.prehighlighted_items != []:
                 self.unprehighlight()
 
     def canvasToImage(self, coords):
@@ -350,17 +373,22 @@ class ScrollableImageFrame(ttk.Frame):
             self.updateMarker(id)
 
     def createMarkerSymbol(self,marker):
+        colors = self.app.config['Colors']
         r = 10
         xc, yc = self.ImageToCanvas([marker.image_x, marker.image_y])
         if marker.mtype == 0:
             markertags = (f'Tcode:marker',f'Tid:{marker.id}')
-            self.canvas.create_line(xc-r, yc, xc+r, yc, fill='blue', tags = markertags)
-            self.canvas.create_line(xc, yc-r, xc, yc+r, fill='blue', tags = markertags)
+            # Crosshairs
+            self.canvas.create_line(xc-r, yc, xc+r, yc, fill=colors['marker_default'], tags = markertags)
+            self.canvas.create_line(xc, yc-r, xc, yc+r, fill=colors['marker_default'], tags = markertags)
+            # Prehighlight
             if marker.id in self.prehighlighted_items:
-                self.canvas.create_oval(xc-r-2, yc-r-2, xc+r+2, yc+r+2, width=3, outline='yellow', tags = markertags)
-            self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline='blue', tags = markertags)
+                self.canvas.create_oval(xc-r-2, yc-r-2, xc+r+2, yc+r+2, width=3, outline=colors['prehighlight'], tags = markertags)
+            # Circle
+            self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline=colors['marker_default'], tags = markertags)
             tagsmask = markertags + ('Tmask',)
             bgcolor = self.canvas.cget('bg')
+            # Pick mask, behind everything
             i = self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline=bgcolor, fill=bgcolor, tags = tagsmask)
             self.canvas.tag_lower(i)
 
@@ -370,10 +398,6 @@ class ScrollableImageFrame(ttk.Frame):
         self.createMarkerSymbol(marker)
         print(f'Created Marker, id={marker.id}')
         self.undo_redo_manager.pushAction(self.deleteMarker, marker.id)
-        #xw = askfloat("X coordinate", "X coordinate?", parent=self)
-        #yw = askfloat("Y coordinate", "Y coordinate?", parent=self)
-        #c = self.solver.CreateConstraint(x,y,xw,yw,emit=False)
-        #T = self.solver.ComputeSolution()
     
     def deleteMarker(self, id):
         if id in self.prehighlighted_items:
@@ -386,7 +410,6 @@ class ScrollableImageFrame(ttk.Frame):
             self.canvas.delete(item)
         print(f'Deleted Marker, id={id}')
         self.undo_redo_manager.pushAction(self.createMarker, x, y, id)
-        self.undo_redo_manager.pushEndMark()
 
     def on_createconstraint(self,c):
         print('Got create signal')
@@ -406,7 +429,10 @@ class ScrollableImageFrame(ttk.Frame):
         self.undo_redo_manager.pushEndMark()
 
     def deleteMarkerAtClickPoint(self):
-        pass
+        idlist = self.pickItem(self.click_x,self.click_y,'marker')
+        if idlist != []:
+            self.deleteMarker(idlist[0])
+            self.undo_redo_manager.pushEndMark()
 
     def key(self, event):
         if event.char == 'm' or event.char == 'M':
@@ -473,13 +499,17 @@ class App(ttk.Frame):
 
         #print_hierarchy(self)
 
+        self.config = ConfigParser()
+        self.config.read('config.ini')
+        print(self.config.sections())
+
         # run
         self.mainloop()
 
     def set_image(self, path):
         """ Close previous image and set a new one """
         self.close_image()  # close previous image
-        self.imframe = ScrollableImageFrame(self.placeholder, path=path)  # create image frame
+        self.imframe = ScrollableImageFrame(self.placeholder, self, path=path)  # create image frame
         self.imframe.grid()
 
     def open_image(self):
