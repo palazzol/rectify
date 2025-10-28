@@ -92,6 +92,7 @@ class ScrollableImageFrame(ttk.Frame):
         # Resize
         self.canvas.bind('<Configure>', lambda event: self.show_image())  # canvas is resized
         # Selection
+        self.canvas.bind('<Control-ButtonPress-1>', self.toggle_selectop)
         self.canvas.bind('<ButtonPress-1>', self.selectop)
         #self.canvas.bind('<ButtonPress-1>', self.createMarker)
         # Panning
@@ -105,6 +106,7 @@ class ScrollableImageFrame(ttk.Frame):
         self.canvas.bind('<Motion>', self.motion)
         # Keys
         self.canvas.bind('<KeyRelease>', self.key)
+        self.canvas.bind('<Control-KeyRelease>', self.controlKey)
         # Context Menu
         self.canvas.bind('<ButtonPress-3>', self.popup)
 
@@ -258,6 +260,11 @@ class ScrollableImageFrame(ttk.Frame):
             self.selected_items.append(markerid)
         self.updateMarker(markerid)
 
+    def unselectMarker(self, markerid):
+        if markerid in self.selected_items:
+            self.selected_items.remove(markerid)
+        self.updateMarker(markerid)
+        
     def unselect(self):
         ids = self.selected_items.copy()
         self.selected_items = []
@@ -285,7 +292,6 @@ class ScrollableImageFrame(ttk.Frame):
     def motion(self, event):
         if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
             return
-        #x,y = self.canvasToImage((self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)))
         x,y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
         #print(self.canvas.find_withtag("current"))
         idlist = self.pickItem(x,y,'marker')
@@ -311,6 +317,18 @@ class ScrollableImageFrame(ttk.Frame):
             self.selectMarker(id)
         else:
             self.unselect()
+
+    def toggle_selectop(self, event):
+        if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
+            return
+        x,y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        idlist = self.pickItem(x,y,'marker')
+        if idlist != []:
+            id = idlist[0]
+            if id in self.selected_items:
+                self.unselectMarker(id)
+            else:
+                self.selectMarker(id)
 
     def canvasToImage(self, coords):
         x_offs, y_offs = self.canvas.coords(self.last_imageid)
@@ -453,6 +471,12 @@ class ScrollableImageFrame(ttk.Frame):
         self.click_x,self.click_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
         self.createMarkerAtClickPoint()
 
+    def on_deleteMarker(self,event):
+        if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
+            return
+        self.click_x,self.click_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        self.deleteMarkerAtClickPoint()
+
     def createMarkerAtClickPoint(self):
         image_x, image_y = self.canvasToImage((self.click_x,self.click_y))
         self.createMarker(image_x, image_y)
@@ -465,13 +489,20 @@ class ScrollableImageFrame(ttk.Frame):
             self.undo_redo_manager.pushEndMark()
 
     def key(self, event):
-        if event.char == 'm' or event.char == 'M':
+        if event.keysym in ['m','M']:
             self.on_createMarker(event)
-        elif event.char == 'z':
+        elif event.keysym in ['BackSpace','Delete']:
+            self.on_deleteMarker(event)
+
+    def controlKey(self, event):
+        if event.keysym in ['m','M']:
+            self.on_createMarker(event)
+        elif event.keysym in ['z','Z']:
             self.undo_redo_manager.undo()
-        elif event.char == 'y':
+        elif event.keysym in ['y','Y']:
             self.undo_redo_manager.redo()
-        #print(event)
+        elif event.keysym in ['BackSpace','Delete']:
+            self.on_deleteMarker(event)
 
 class App(ttk.Frame):
     def __init__(self):
