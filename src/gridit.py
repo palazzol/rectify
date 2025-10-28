@@ -92,6 +92,7 @@ class ScrollableImageFrame(ttk.Frame):
         # Resize
         self.canvas.bind('<Configure>', lambda event: self.show_image())  # canvas is resized
         # Selection
+        self.canvas.bind('<ButtonPress-1>', self.selectop)
         #self.canvas.bind('<ButtonPress-1>', self.createMarker)
         # Panning
         self.canvas.bind('<ButtonPress-2>', self.panBegin)
@@ -131,7 +132,7 @@ class ScrollableImageFrame(ttk.Frame):
         self.last_imageid = None
 
         self.markers = {}   # Marker IDs and Marker Objects here
-        self.highlighted_items = []
+        self.selected_items = []
         self.prehighlighted_items = []
 
         # Undo/Redo
@@ -251,7 +252,18 @@ class ScrollableImageFrame(ttk.Frame):
         self.prehighlighted_items = []
         for id in ids:
             self.updateMarker(id)
-    
+
+    def selectMarker(self, markerid):
+        if markerid not in self.selected_items:
+            self.selected_items.append(markerid)
+        self.updateMarker(markerid)
+
+    def unselect(self):
+        ids = self.selected_items.copy()
+        self.selected_items = []
+        for id in ids:
+            self.updateMarker(id)
+
     def pickItems(self,x,y,itemtype,singleitem = False):
         idlist = []
         items = self.canvas.find_overlapping(x, y, x, y)
@@ -287,6 +299,18 @@ class ScrollableImageFrame(ttk.Frame):
         else:
             if self.prehighlighted_items != []:
                 self.unprehighlight()
+
+    def selectop(self, event):
+        if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
+            return
+        x,y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        idlist = self.pickItem(x,y,'marker')
+        if idlist != []:
+            id = idlist[0]
+            self.unselect()
+            self.selectMarker(id)
+        else:
+            self.unselect()
 
     def canvasToImage(self, coords):
         x_offs, y_offs = self.canvas.coords(self.last_imageid)
@@ -378,14 +402,18 @@ class ScrollableImageFrame(ttk.Frame):
         xc, yc = self.ImageToCanvas([marker.image_x, marker.image_y])
         if marker.mtype == 0:
             markertags = (f'Tcode:marker',f'Tid:{marker.id}')
+            if marker.id in self.selected_items:
+                color = colors['marker_selected']
+            else:
+                color = colors['marker_default']
             # Crosshairs
-            self.canvas.create_line(xc-r, yc, xc+r, yc, fill=colors['marker_default'], tags = markertags)
-            self.canvas.create_line(xc, yc-r, xc, yc+r, fill=colors['marker_default'], tags = markertags)
+            self.canvas.create_line(xc-r, yc, xc+r, yc, fill=color, tags = markertags)
+            self.canvas.create_line(xc, yc-r, xc, yc+r, fill=color, tags = markertags)
             # Prehighlight
             if marker.id in self.prehighlighted_items:
                 self.canvas.create_oval(xc-r-2, yc-r-2, xc+r+2, yc+r+2, width=3, outline=colors['prehighlight'], tags = markertags)
             # Circle
-            self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline=colors['marker_default'], tags = markertags)
+            self.canvas.create_oval(xc-r, yc-r, xc+r, yc+r, width=3, outline=color, tags = markertags)
             tagsmask = markertags + ('Tmask',)
             bgcolor = self.canvas.cget('bg')
             # Pick mask, behind everything
@@ -402,6 +430,8 @@ class ScrollableImageFrame(ttk.Frame):
     def deleteMarker(self, id):
         if id in self.prehighlighted_items:
             self.unprehighlight()
+        if id in self.selected_items:
+            self.selected_items.remove(id)
         marker = self.markers[id]
         id,x,y = marker.id, marker.image_x, marker.image_y
         self.markers.pop(id)
