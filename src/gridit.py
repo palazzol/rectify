@@ -329,6 +329,8 @@ class ScrollableImageFrame(ttk.Frame):
                 self.unselectMarker(id)
             else:
                 self.selectMarker(id)
+        else:
+            self.unselect()
 
     def canvasToImage(self, coords):
         x_offs, y_offs = self.canvas.coords(self.last_imageid)
@@ -477,6 +479,17 @@ class ScrollableImageFrame(ttk.Frame):
         self.click_x,self.click_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
         self.deleteMarkerAtClickPoint()
 
+    def on_deleteSelection(self,event):
+        if self.outside(self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)):
+            return
+        ids = self.selected_items.copy()
+        self.selected_items = []
+        if ids == []:
+            return
+        for id in ids:
+            self.deleteMarker(id)
+        self.undo_redo_manager.pushEndMark()
+
     def createMarkerAtClickPoint(self):
         image_x, image_y = self.canvasToImage((self.click_x,self.click_y))
         self.createMarker(image_x, image_y)
@@ -492,7 +505,7 @@ class ScrollableImageFrame(ttk.Frame):
         if event.keysym in ['m','M']:
             self.on_createMarker(event)
         elif event.keysym in ['BackSpace','Delete']:
-            self.on_deleteMarker(event)
+            self.on_deleteSelection(event)
 
     def controlKey(self, event):
         if event.keysym in ['m','M']:
@@ -502,7 +515,7 @@ class ScrollableImageFrame(ttk.Frame):
         elif event.keysym in ['y','Y']:
             self.undo_redo_manager.redo()
         elif event.keysym in ['BackSpace','Delete']:
-            self.on_deleteMarker(event)
+            self.on_deleteSelection(event)
 
 class App(ttk.Frame):
     def __init__(self):
@@ -562,7 +575,6 @@ class App(ttk.Frame):
 
         self.config = ConfigParser()
         self.config.read('config.ini')
-        print(self.config.sections())
 
         # run
         self.mainloop()
