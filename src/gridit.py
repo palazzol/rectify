@@ -84,9 +84,11 @@ class ScrollableImageFrame(ttk.Frame):
 
         self.context_menu = tk.Menu(self, tearoff=0)
         self.context_menu.add_command(label="Create Marker",
-                                      command = self.createMarkerAtClickPoint)
+                                      command = self.createMarkerAtClickPoint,
+                                      accelerator="M")
         self.context_menu.add_command(label="Delete Marker",
-                                      command = self.deleteMarkerAtClickPoint)
+                                      command = self.deleteMarkerAtClickPoint,
+                                      accelerator="D")
 
         # Bind events to the Canvas
         # Resize
@@ -504,18 +506,16 @@ class ScrollableImageFrame(ttk.Frame):
     def key(self, event):
         if event.keysym in ['m','M']:
             self.on_createMarker(event)
+        elif event.keysym in ['d','D']:
+            self.on_deleteMarker(event)
         elif event.keysym in ['BackSpace','Delete']:
             self.on_deleteSelection(event)
 
     def controlKey(self, event):
-        if event.keysym in ['m','M']:
-            self.on_createMarker(event)
-        elif event.keysym in ['z','Z']:
+        if event.keysym in ['z','Z']:
             self.undo_redo_manager.undo()
         elif event.keysym in ['y','Y']:
             self.undo_redo_manager.redo()
-        elif event.keysym in ['BackSpace','Delete']:
-            self.on_deleteSelection(event)
 
 class App(ttk.Frame):
     def __init__(self):
