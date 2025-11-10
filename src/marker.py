@@ -7,6 +7,7 @@ class Marker(QGraphicsPixmapItem):
     pixmap = None
     selected_pixmap = None
     prehighlighted_pixmap = None
+    next_marker_id = 0
     
     def _drawPixmap(self,r,color):
         pxmap = QtGui.QPixmap(64,64)
@@ -26,49 +27,47 @@ class Marker(QGraphicsPixmapItem):
     def _initPixmaps(self,r):
         Marker.pixmap                = self._drawPixmap(r,QtGui.QColor(128,128,255))
         Marker.selected_pixmap       = self._drawPixmap(r,QtGui.QColor(  0,  0,255))
-        Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColor(255,255,  0))
+        Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColor(255,255,  0))    # unused
 
-    def __init__(self, pos, scale):
+    def __init__(self, view, pos, id=id):
         super().__init__()
-        self.scale = None
-        self.r = 25.0
+        # Set the id if not given
+        if id == None:
+            self.id = Marker.next_marker_id
+            Marker.next_marker_id += 1
+        else:
+            self.id = id
+        self.r = 25.0   # radius in pixels on a 64x64 pixmap
         if Marker.pixmap is None:
             self._initPixmaps(self.r)
         self.setPos(pos)
         self.setOffset(-32,-32)
         self.rect = QtCore.QRect(-32,-32,32,32)
         self.setTransformationMode(QtCore.Qt.SmoothTransformation)
-        self.setPixmap(Marker.pixmap)
         self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
-        self.setScale(scale)
+        self.setPixmap(Marker.pixmap)
+        self.setView(view)
 
     def itemChange(self, change, value):
+        # if selection state changed, swap the pixmap
         if change == QGraphicsItem.ItemSelectedHasChanged:
             if value:
                 self.setPixmap(Marker.selected_pixmap)
             else:
                 self.setPixmap(Marker.pixmap)
         return super().itemChange(change, value)
-
-    #def paint(self, painter, options, widget):
-        #print("paint")
-        #if self.isSelected():
-        #    self.setPen(QtGui.QPen(QtGui.QColor(255,255,0)))
-        #self.setPixmap(Marker.selected_pixmap)
-        #else:
-        #    self.setPixmap(Marker.pixmap)
-        #return super().paint(painter, options, widget)
     
-    # Used for picking
     def shape(self):
+        # Outline for precise picking
         path = QtGui.QPainterPath()
         path.addEllipse(-self.r,-self.r,2*self.r,2*self.r)
         return path
 
-    # Scales with the View
-    def setScale(self, scale):
-        if scale == self.scale:
-            return
+    def setView(self, view):
+        # Pixmap scales with the View
+        self.view = view    # TBD - maybe we should subscribe to changes instead
+        # one pixel in the view is how much in the scene?
+        scale = (self.view.mapToScene(0,1) - self.view.mapToScene(0,0)).y()
+        #print(f'scale = {scale}')
         super().setScale(scale*10.0/self.r)
-        self.scale = scale
         self.update()

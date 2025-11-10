@@ -3,7 +3,7 @@
 # Retrieved 2025-11-09, License - CC BY-SA 4.0
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QApplication
 
 from marker import Marker
 
@@ -14,6 +14,7 @@ class ImageView(QGraphicsView):
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.parent = parent
         self._zoom = 0
         self._pinned = False
         self._empty = True
@@ -32,36 +33,52 @@ class ImageView(QGraphicsView):
         #self._scene.selectionChanged.connect(self.handleSelectionChange)
         self.markerlist = []
 
-    def createMarker(self, event):
+    def createMarkerAtCursor(self):
         pos = self.mapFromGlobal(QtGui.QCursor.pos())
         point = self.mapToScene(pos)
-        # one pixel in the view is how much in the scene?
-        scale = (self.mapToScene(0,1) - self.mapToScene(0,0)).y()
-        #print(f'scale = {scale}')
-        marker = Marker(point,scale)
+        self.createMarker(point)
+
+    def createMarker(self, point, id=None):
+        marker = Marker(self,point,id)
         self._scene.addItem(marker)
         self.markerlist.append(marker)
         marker.update()
+        print(f'Created marker id={marker.id}')
+        self.parent.undo_redo_manager.pushAction(self.deleteMarker, marker.id)
+
+    def deleteMarker(self, id):
+        marker = None
+        for elem in self.markerlist:
+            if elem.id == id:
+                marker = elem
+                break
+        pos,id = marker.pos(),marker.id
+        self.markerlist.remove(marker)
+        self._scene.removeItem(marker)
+        print(f'Deleted marker id={id}')
+        self.parent.undo_redo_manager.pushAction(self.createMarker, pos, id)
+        self.parent.undo_redo_manager.pushEndMark()
 
     def mousePressEvent(self, event):
+        if not self.hasPhoto():
+            return
         if event.button() == QtCore.Qt.LeftButton:
-            if self.hasPhoto():
-                #print('Begin Window Select')
-                self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-                super().mousePressEvent(event)
+            #print('Begin Window Select')
+            self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+            super().mousePressEvent(event)
         elif event.button() == QtCore.Qt.MiddleButton:
-            if self.hasPhoto():
-                #print('Begin Drag')
-                self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-                fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.LeftButton, QtCore.Qt.LeftButton, event.modifiers());
-                super().mousePressEvent(fakeevent)
+            #print('Begin Drag')
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.LeftButton, QtCore.Qt.LeftButton, event.modifiers());
+            super().mousePressEvent(fakeevent)
 
     def mouseReleaseEvent(self, event):
+        if not self.hasPhoto():
+            return
         if event.button() == QtCore.Qt.LeftButton:
-            if self.hasPhoto():
-                #print('End Window Select')
-                self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
-                super().mouseReleaseEvent(event)
+            #print('End Window Select')
+            self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
+            super().mouseReleaseEvent(event)
         elif event.button() == QtCore.Qt.MiddleButton:
             if self.dragMode() == QGraphicsView.DragMode.ScrollHandDrag:
                 #print('End Drag')
@@ -128,9 +145,8 @@ class ImageView(QGraphicsView):
 
     def updateMarkers(self):
         # Update Markers
-        s = (self.mapToScene(0,1) - self.mapToScene(0,0)).y()
         for elem in self.markerlist:
-            elem.setScale(s)
+            elem.setView(self)
 
     def wheelEvent(self, event):
         delta = event.angleDelta().y()
