@@ -48,7 +48,6 @@ class Marker(QGraphicsPixmapItem):
                 self.setPixmap(Marker.selected_pixmap)
             else:
                 self.setPixmap(Marker.pixmap)
-            print('x')
         return super().itemChange(change, value)
 
     #def paint(self, painter, options, widget):
@@ -73,49 +72,3 @@ class Marker(QGraphicsPixmapItem):
         super().setScale(scale*10.0/self.r)
         self.scale = scale
         self.update()
-
-'''
-class Marker(QGraphicsItem):
-    def __init__(self, pos, scale=1.0):
-        super().__init__()
-        self.pos = pos
-        self.resize(scale)
-        # You can set flags for movability, selectability, etc.
-        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
-        self.setPos(pos)
-        self.rect = QtCore.QRect(-self.r,-self.r,self.r*2,self.r*2)
-        print("init")
-
-    def boundingRect(self):
-        return self.rect.adjusted(-(self.adjwidth+1),-(self.adjwidth+1),+(self.adjwidth+1),+(self.adjwidth+1)) # thick line + 0.5?
-
-    def shape(self):
-        path = QtGui.QPainterPath()
-        path.addEllipse(self.rect.adjusted(-self.adjwidth,-self.adjwidth,+self.adjwidth,+self.adjwidth)) # for thick line
-        return path
-    
-    def paint(self, painter, options, widget=None):
-        if self.isSelected():
-            pen = QtGui.QPen(QtGui.QColor(255,255,0))
-        else:
-            pen = QtGui.QPen(QtGui.QColor(0,0,255))
-        painter.setPen(pen)
-        #brush = QtGui.QBrush(QtGui.QColor(255,0,0))
-        #painter.setBrush(brush)
-        pen.setWidth(self.thickwidth)
-        painter.setPen(pen)
-        painter.drawEllipse(self.rect)
-        pen.setWidth(self.thinwidth)
-        painter.setPen(pen)
-        painter.drawLine(-self.r,0,+self.r,0)
-        painter.drawLine(0,-self.r,0,+self.r)
-        print("paint")
-
-    def resize(self,scale):
-        self.scale = scale
-        self.r = scale*10.0
-        self.thickwidth = scale*3.0
-        self.adjwidth = scale*1.0 # thickwidth/2 rounded down
-        self.thinwidth = scale*1.0
-        self.rect = QtCore.QRect(-self.r,-self.r,self.r*2,self.r*2)
-'''

@@ -37,7 +37,7 @@ class ImageView(QGraphicsView):
         point = self.mapToScene(pos)
         # one pixel in the view is how much in the scene?
         scale = (self.mapToScene(0,1) - self.mapToScene(0,0)).y()
-        print(f'scale = {scale}')
+        #print(f'scale = {scale}')
         marker = Marker(point,scale)
         self._scene.addItem(marker)
         self.markerlist.append(marker)
@@ -46,12 +46,12 @@ class ImageView(QGraphicsView):
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
             if self.hasPhoto():
-                print('Begin Window Select')
+                #print('Begin Window Select')
                 self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
                 super().mousePressEvent(event)
         elif event.button() == QtCore.Qt.MiddleButton:
             if self.hasPhoto():
-                print('Begin Drag')
+                #print('Begin Drag')
                 self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
                 fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.LeftButton, QtCore.Qt.LeftButton, event.modifiers());
                 super().mousePressEvent(fakeevent)
@@ -59,12 +59,12 @@ class ImageView(QGraphicsView):
     def mouseReleaseEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
             if self.hasPhoto():
-                print('End Window Select')
+                #print('End Window Select')
                 self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
                 super().mouseReleaseEvent(event)
         elif event.button() == QtCore.Qt.MiddleButton:
             if self.dragMode() == QGraphicsView.DragMode.ScrollHandDrag:
-                print('End Drag')
+                #print('End Drag')
                 self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
                 fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.LeftButton, QtCore.Qt.LeftButton, event.modifiers());
                 super().mouseReleaseEvent(fakeevent)
