@@ -79,10 +79,12 @@ class UndoRedoManager:
                     if stack == []:
                         done = True
             self.pushAction(UndoRedoManager.__endMarkFunction)
-            return True # operation successful
+            rv = True # operation successful
         else:
-            return False # nothing to do
+            rv = False # nothing to do
         self.mode = UndoRedoManager.Mode.DOING
+        return rv
+
 
 
 
