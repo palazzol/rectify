@@ -49,14 +49,14 @@ class UndoRedoManager:
         if self.mode == UndoRedoManager.Mode.DOING:
             if self.undo_stack != []:
                 if self.undo_stack[-1].function == UndoRedoManager.__endMarkFunction:
-                    print('Error: pushEndMark without Action')
+                    raise RuntimeError('UndoRedoManager: pushEndMark without Action(s)')
             self.pushAction(UndoRedoManager.__endMarkFunction)
 
     def undo(self):
-        self.__undoOrRedo('Undo', UndoRedoManager.Mode.UNDOING, self.undo_stack)
+        return self.__undoOrRedo('Undo', UndoRedoManager.Mode.UNDOING, self.undo_stack)
 
     def redo(self):
-        self.__undoOrRedo('Redo', UndoRedoManager.Mode.REDOING, self.redo_stack)
+        return self.__undoOrRedo('Redo', UndoRedoManager.Mode.REDOING, self.redo_stack)
 
     def __endMarkFunction(self):
         pass
@@ -66,14 +66,12 @@ class UndoRedoManager:
         self.mode = mode
         if stack != []:
             action = stack.pop()
-            if action.function != UndoRedoManager.__endMarkFunction:
-                print(f'Error: {opname}ing without Mark!')
-                return
+            if action.function != UndoRedoManager.__endMarkFunction: # this shouldn't happen
+                raise RuntimeError(f'UndoRedoManager: {opname}ing without Mark!')
             done = False
             while not done:
-                if stack == []:
-                    print(f'Error: {opname}ing with no Action!')
-                    return
+                if stack == []: # this shouldn't happen
+                    raise RuntimeError(f'UndoRedoManager: {opname}ing with no Action!')
                 if stack[-1].function == UndoRedoManager.__endMarkFunction:
                     done = True
                 else:
@@ -81,8 +79,9 @@ class UndoRedoManager:
                     if stack == []:
                         done = True
             self.pushAction(UndoRedoManager.__endMarkFunction)
+            return True # operation successful
         else:
-            print(f'Nothing to {opname}!')
+            return False # nothing to do
         self.mode = UndoRedoManager.Mode.DOING
 
 
