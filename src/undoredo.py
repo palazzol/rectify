@@ -67,11 +67,13 @@ class UndoRedoManager:
         if stack != []:
             action = stack.pop()
             if action.function != UndoRedoManager.__endMarkFunction: # this shouldn't happen
-                raise RuntimeError(f'UndoRedoManager: {opname}ing without Mark!')
+                msg = f'UndoRedoManager: {opname}ing without Mark!'
+                raise RuntimeError(msg)
             done = False
             while not done:
                 if stack == []: # this shouldn't happen
-                    raise RuntimeError(f'UndoRedoManager: {opname}ing with no Action!')
+                    msg = f'UndoRedoManager: {opname}ing with no Action!'
+                    raise RuntimeError(msg)
                 if stack[-1].function == UndoRedoManager.__endMarkFunction:
                     done = True
                 else:
