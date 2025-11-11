@@ -1,5 +1,5 @@
 
-from PySide6 import QtCore, QtGui
+from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
 # Use a scaled pixmap for marker graphics
@@ -82,3 +82,15 @@ class Marker(QGraphicsPixmapItem):
         if self.pos() != self.mouse_pressed_pos:
             self.view.setSelectionDeltaPos(self.pos() - self.mouse_pressed_pos)
         super().mouseReleaseEvent(event)
+
+    def contextMenuEvent(self, event):
+        context_menu = QtWidgets.QMenu()
+        action = QtGui.QAction("Delete Marker")
+        action.triggered.connect(self.deleteYourself)
+        context_menu.addAction(action)
+        context_menu.exec(event.screenPos())
+
+    # Atomic Action
+    def deleteYourself(self):
+        self.view.deleteMarker(self.id)
+        self.view.parent.undo_redo_manager.pushEndMark()

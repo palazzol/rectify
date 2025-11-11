@@ -65,13 +65,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.statusbar.showMessage('Nothing to Redo!')
         elif event.key() == QtCore.Qt.Key_M and event.modifiers() == QtCore.Qt.NoModifier:
             self.viewer.createMarkerAtCursor()
-            self.undo_redo_manager.pushEndMark()
-        elif event.key() == QtCore.Qt.Key_D and event.modifiers() == QtCore.Qt.NoModifier:
-            print('TBD - Delete Marker')
+        #elif event.key() == QtCore.Qt.Key_D and event.modifiers() == QtCore.Qt.NoModifier:
+        #    print('TBD - Delete Marker')
         elif ((event.key() == QtCore.Qt.Key_Backspace) or (event.key() == QtCore.Qt.Key_Delete )) and event.modifiers() == QtCore.Qt.NoModifier:
-            count = self.viewer.deleteSelection()
-            if count > 0:
-                self.undo_redo_manager.pushEndMark()
+            self.viewer.deleteSelection()
         else:
             pass
             #print(event.key(), event.isAutoRepeat(), event.keyCombination(), event.modifiers())

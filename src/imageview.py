@@ -33,10 +33,32 @@ class ImageView(QGraphicsView):
         #self._scene.selectionChanged.connect(self.handleSelectionChange)
         self.markerlist = []
 
-    def createMarkerAtCursor(self):
-        pos = self.mapFromGlobal(QtGui.QCursor.pos())
+    def contextMenuEvent(self, event):
+        if self._photo.isUnderMouse():
+            if len(self.items(QtCore.QRect(event.x(), event.y(), 1, 1))) > 1: # TBD need to ignore the image item!
+                super().contextMenuEvent(event) # Handle Items first
+            else:
+                context_menu = QtWidgets.QMenu(self)
+                create_marker_action = QtGui.QAction("Create &Marker", self)
+                create_marker_action.setShortcut("M")
+                create_marker_action.triggered.connect(self.createMarkerAtMenuPos)
+                context_menu.addAction(create_marker_action)
+                self.menupos = event.globalPos() # save this as the menu action needs it
+                context_menu.exec(event.globalPos())
+
+    # Atomic Action
+    def createMarkerAtMenuPos(self):
+        pos = self.mapFromGlobal(self.menupos)
         point = self.mapToScene(pos)
         self.createMarker(point)
+        self.parent.undo_redo_manager.pushEndMark()
+
+    # Atomic Action
+    def createMarkerAtCursor(self):
+        viewpos = self.mapFromGlobal(QtGui.QCursor.pos())
+        point = self.mapToScene(viewpos)
+        self.createMarker(point)
+        self.parent.undo_redo_manager.pushEndMark()
 
     def createMarker(self, point, id=None):
         marker = Marker(self,point,id)
@@ -47,26 +69,22 @@ class ImageView(QGraphicsView):
         self.parent.undo_redo_manager.pushAction(self.deleteMarker, marker.id)
 
     def deleteMarker(self, id):
-        marker = None
-        for elem in self.markerlist:
-            if elem.id == id:
-                marker = elem
-                break
+        marker = self.getItemById(id)
         pos,id = marker.pos(),marker.id
         self.markerlist.remove(marker)
         self._scene.removeItem(marker)
         #print(f'Deleted marker id={id}')
         self.parent.undo_redo_manager.pushAction(self.createMarker, pos, id)
-        #self.parent.undo_redo_manager.pushEndMark()
 
+    # Atomic Action
     def deleteSelection(self):
         selectedItems = self._scene.selectedItems().copy()
-        count = 0
+        if len(selectedItems) == 0:
+            return
         for marker in selectedItems:
             id = marker.id
             self.deleteMarker(id)
-            count += 1
-        return count
+        self.parent.undo_redo_manager.pushEndMark()
 
     def mousePressEvent(self, event):
         if not self.hasPhoto():
@@ -154,8 +172,8 @@ class ImageView(QGraphicsView):
 
     def updateMarkers(self):
         # Update Markers
-        for elem in self.markerlist:
-            elem.setView(self)
+        for marker in self.markerlist:
+            marker.setView(self)
 
     def wheelEvent(self, event):
         delta = event.angleDelta().y()
@@ -193,6 +211,7 @@ class ImageView(QGraphicsView):
     #def handleSelectionChange(self):
     #    print('Selection Changed!')
 
+    # Atomic Action
     def setSelectionDeltaPos(self, delta_pos):
         for item in self._scene.selectedItems():
             new_pos = item.pos()
@@ -201,8 +220,15 @@ class ImageView(QGraphicsView):
         self.parent.undo_redo_manager.pushEndMark()
     
     def moveMarker(self, id, pos):
+        item = self.getItemById(id)
+        old_pos = item.pos()
+        self.parent.undo_redo_manager.pushAction(self.moveMarker, id, old_pos)
+        item.setPos(pos)
+    
+    # TBD - we can make this more efficient later 
+    # by using a dict of ids to items
+    def getItemById(self, id):
         for item in self.markerlist:
             if item.id == id:
-               old_pos = item.pos()
-               self.parent.undo_redo_manager.pushAction(self.moveMarker, id, old_pos)
-               item.setPos(pos)
+                return item
+        return None
