@@ -69,7 +69,9 @@ class MainWindow(QtWidgets.QMainWindow):
         elif event.key() == QtCore.Qt.Key_D and event.modifiers() == QtCore.Qt.NoModifier:
             print('TBD - Delete Marker')
         elif ((event.key() == QtCore.Qt.Key_Backspace) or (event.key() == QtCore.Qt.Key_Delete )) and event.modifiers() == QtCore.Qt.NoModifier:
-            print('TBD - Delete Selection')
+            count = self.viewer.deleteSelection()
+            if count > 0:
+                self.undo_redo_manager.pushEndMark()
         else:
             pass
             #print(event.key(), event.isAutoRepeat(), event.keyCombination(), event.modifiers())

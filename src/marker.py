@@ -71,3 +71,14 @@ class Marker(QGraphicsPixmapItem):
         #print(f'scale = {scale}')
         super().setScale(scale*10.0/self.r)
         self.update()
+
+    def mousePressEvent(self, event):
+        # Save pos to detect an interactive move
+        self.mouse_pressed_pos = self.pos()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        # If we are being moved, the whole selection is being moved - notify the view
+        if self.pos() != self.mouse_pressed_pos:
+            self.view.setSelectionDeltaPos(self.pos() - self.mouse_pressed_pos)
+        super().mouseReleaseEvent(event)

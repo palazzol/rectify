@@ -43,7 +43,7 @@ class ImageView(QGraphicsView):
         self._scene.addItem(marker)
         self.markerlist.append(marker)
         marker.update()
-        print(f'Created marker id={marker.id}')
+        #print(f'Created marker id={marker.id}')
         self.parent.undo_redo_manager.pushAction(self.deleteMarker, marker.id)
 
     def deleteMarker(self, id):
@@ -55,9 +55,18 @@ class ImageView(QGraphicsView):
         pos,id = marker.pos(),marker.id
         self.markerlist.remove(marker)
         self._scene.removeItem(marker)
-        print(f'Deleted marker id={id}')
+        #print(f'Deleted marker id={id}')
         self.parent.undo_redo_manager.pushAction(self.createMarker, pos, id)
-        self.parent.undo_redo_manager.pushEndMark()
+        #self.parent.undo_redo_manager.pushEndMark()
+
+    def deleteSelection(self):
+        selectedItems = self._scene.selectedItems().copy()
+        count = 0
+        for marker in selectedItems:
+            id = marker.id
+            self.deleteMarker(id)
+            count += 1
+        return count
 
     def mousePressEvent(self, event):
         if not self.hasPhoto():
@@ -184,3 +193,16 @@ class ImageView(QGraphicsView):
     #def handleSelectionChange(self):
     #    print('Selection Changed!')
 
+    def setSelectionDeltaPos(self, delta_pos):
+        for item in self._scene.selectedItems():
+            new_pos = item.pos()
+            old_pos = new_pos - delta_pos
+            self.parent.undo_redo_manager.pushAction(self.moveMarker, item.id, old_pos)
+        self.parent.undo_redo_manager.pushEndMark()
+    
+    def moveMarker(self, id, pos):
+        for item in self.markerlist:
+            if item.id == id:
+               old_pos = item.pos()
+               self.parent.undo_redo_manager.pushAction(self.moveMarker, id, old_pos)
+               item.setPos(pos)
