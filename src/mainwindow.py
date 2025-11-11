@@ -56,13 +56,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def keyReleaseEvent(self, event):
         if event.key() == QtCore.Qt.Key_Z and event.modifiers() | QtCore.Qt.CTRL:
-            did_something = self.undo_redo_manager.undo()
-            if not did_something:
+            actionname = self.undo_redo_manager.undo()
+            if actionname == '':
                 self.statusbar.showMessage('Nothing to Undo!')
+            else:
+                self.statusbar.showMessage(f'{actionname} Undone')
         elif event.key() == QtCore.Qt.Key_Y and event.modifiers() | QtCore.Qt.CTRL:
-            did_something = self.undo_redo_manager.redo()
-            if not did_something:
+            actionname = self.undo_redo_manager.redo()
+            if actionname == '':
                 self.statusbar.showMessage('Nothing to Redo!')
+            else:
+                self.statusbar.showMessage(f'{actionname} Redone')
         elif event.key() == QtCore.Qt.Key_M and event.modifiers() == QtCore.Qt.NoModifier:
             self.viewer.createMarkerAtCursor()
         #elif event.key() == QtCore.Qt.Key_D and event.modifiers() == QtCore.Qt.NoModifier:

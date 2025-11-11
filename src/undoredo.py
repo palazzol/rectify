@@ -19,7 +19,9 @@ class UndoRedoManager:
             self.args = args
             self.kwargs = kwargs
         def execute(self):
-            self.function(*self.args, **self.kwargs)
+            return self.function(*self.args, **self.kwargs)
+        def dump(self):
+            print(self.function, self.args, self.kwargs)
 
     class Mode(Enum):
         DOING = 1,
@@ -45,12 +47,12 @@ class UndoRedoManager:
         elif self.mode == UndoRedoManager.Mode.REDOING:
             self.undo_stack.append(action)
 
-    def pushEndMark(self):
+    def pushEndMark(self, desc="Undescribed"):
         if self.mode == UndoRedoManager.Mode.DOING:
             if self.undo_stack != []:
                 if self.undo_stack[-1].function == UndoRedoManager.__endMarkFunction:
                     raise RuntimeError('UndoRedoManager: pushEndMark without Action(s)')
-            self.pushAction(UndoRedoManager.__endMarkFunction)
+            self.pushAction(UndoRedoManager.__endMarkFunction, self, desc)
 
     def undo(self):
         return self.__undoOrRedo('Undo', UndoRedoManager.Mode.UNDOING, self.undo_stack)
@@ -58,17 +60,18 @@ class UndoRedoManager:
     def redo(self):
         return self.__undoOrRedo('Redo', UndoRedoManager.Mode.REDOING, self.redo_stack)
 
-    def __endMarkFunction(self):
-        pass
+    def __endMarkFunction(self, desc):
+        return desc
 
     # Note: Undo and Redo are the same code, except for the mode and the stacks involved
     def __undoOrRedo(self, opname, mode, stack):
         self.mode = mode
         if stack != []:
-            action = stack.pop()
-            if action.function != UndoRedoManager.__endMarkFunction: # this shouldn't happen
+            endaction = stack.pop()
+            if endaction.function != UndoRedoManager.__endMarkFunction: # this shouldn't happen
                 msg = f'UndoRedoManager: {opname}ing without Mark!'
                 raise RuntimeError(msg)
+            desc = endaction.execute()
             done = False
             while not done:
                 if stack == []: # this shouldn't happen
@@ -80,10 +83,10 @@ class UndoRedoManager:
                     stack.pop().execute()
                     if stack == []:
                         done = True
-            self.pushAction(UndoRedoManager.__endMarkFunction)
-            rv = True # operation successful
+            self.pushAction(UndoRedoManager.__endMarkFunction, self, desc)
+            rv = desc
         else:
-            rv = False # nothing to do
+            rv = '' # nothing done
         self.mode = UndoRedoManager.Mode.DOING
         return rv
 

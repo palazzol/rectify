@@ -51,14 +51,16 @@ class ImageView(QGraphicsView):
         pos = self.mapFromGlobal(self.menupos)
         point = self.mapToScene(pos)
         self.createMarker(point)
-        self.parent.undo_redo_manager.pushEndMark()
+        self.parent.undo_redo_manager.pushEndMark("Create Marker")
+        self.parent.statusbar.showMessage("Create Marker")
 
     # Atomic Action
     def createMarkerAtCursor(self):
         viewpos = self.mapFromGlobal(QtGui.QCursor.pos())
         point = self.mapToScene(viewpos)
         self.createMarker(point)
-        self.parent.undo_redo_manager.pushEndMark()
+        self.parent.undo_redo_manager.pushEndMark("Create Marker")
+        self.parent.statusbar.showMessage("Create Marker")
 
     def createMarker(self, point, id=None):
         marker = Marker(self,point,id)
@@ -84,7 +86,8 @@ class ImageView(QGraphicsView):
         for marker in selectedItems:
             id = marker.id
             self.deleteMarker(id)
-        self.parent.undo_redo_manager.pushEndMark()
+        self.parent.undo_redo_manager.pushEndMark("Delete Selection")
+        self.parent.statusbar.showMessage("Delete Selection")
 
     def mousePressEvent(self, event):
         if not self.hasPhoto():
@@ -217,7 +220,8 @@ class ImageView(QGraphicsView):
             new_pos = item.pos()
             old_pos = new_pos - delta_pos
             self.parent.undo_redo_manager.pushAction(self.moveMarker, item.id, old_pos)
-        self.parent.undo_redo_manager.pushEndMark()
+        self.parent.undo_redo_manager.pushEndMark("Move Selection")
+        self.parent.statusbar.showMessage("Move Selection")
     
     def moveMarker(self, id, pos):
         item = self.getItemById(id)

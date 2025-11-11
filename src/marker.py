@@ -93,4 +93,5 @@ class Marker(QGraphicsPixmapItem):
     # Atomic Action
     def deleteYourself(self):
         self.view.deleteMarker(self.id)
-        self.view.parent.undo_redo_manager.pushEndMark()
+        self.view.parent.undo_redo_manager.pushEndMark("Delete Marker")
+        self.view.parent.statusbar.showMessage("Delete Marker")
