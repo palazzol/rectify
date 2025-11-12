@@ -85,8 +85,12 @@ class Marker(QGraphicsPixmapItem):
 
     def contextMenuEvent(self, event):
         context_menu = QtWidgets.QMenu()
-        action = QtGui.QAction("Delete Marker")
-        action.triggered.connect(self.deleteYourself)
+        if self in self.view._scene.selectedItems():
+            action = QtGui.QAction("Delete Selection")
+            action.triggered.connect(self.view.deleteSelection)
+        else:
+            action = QtGui.QAction("Delete Marker")
+            action.triggered.connect(self.deleteYourself)
         context_menu.addAction(action)
         context_menu.exec(event.screenPos())
 
