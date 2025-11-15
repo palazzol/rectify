@@ -44,6 +44,11 @@ class ImageView(QGraphicsView):
                 create_marker_action.triggered.connect(self.createMarkerAtMenuPos)
                 context_menu.addAction(create_marker_action)
                 self.menupos = event.globalPos() # save this as the menu action needs it
+                if len(self._scene.selectedItems()) > 1:
+                    create_constraint_action = QtGui.QAction("Create &Constraint", self)
+                    create_constraint_action.setShortcut("C")
+                    create_constraint_action.triggered.connect(self.createConstraint)
+                    context_menu.addAction(create_constraint_action)
                 context_menu.exec(event.globalPos())
 
     # Atomic Action
@@ -229,6 +234,9 @@ class ImageView(QGraphicsView):
         self.parent.undo_redo_manager.pushAction(self.moveMarker, id, old_pos)
         item.setPos(pos)
     
+    def createConstraint(self):
+        pass
+
     # TBD - we can make this more efficient later 
     # by using a dict of ids to items
     def getItemById(self, id):

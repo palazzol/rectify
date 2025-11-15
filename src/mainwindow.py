@@ -71,6 +71,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.viewer.createMarkerAtCursor()
         #elif event.key() == QtCore.Qt.Key_D and event.modifiers() == QtCore.Qt.NoModifier:
         #    print('TBD - Delete Marker')
+        elif event.key() == QtCore.Qt.Key_C and event.modifiers() == QtCore.Qt.NoModifier:
+            if len(self.viewer._scene.selectedItems()) > 1:
+                self.viewer.createConstraint()
         elif ((event.key() == QtCore.Qt.Key_Backspace) or (event.key() == QtCore.Qt.Key_Delete )) and event.modifiers() == QtCore.Qt.NoModifier:
             self.viewer.deleteSelection()
         else:
@@ -128,7 +131,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def handleCoords(self, point):
         if not point.isNull():
             #self.labelCoords.setText(f'{point.x()}, {point.y()}')
-            self.statusbar.showMessage(f'Fractional Pixel Position: ({point.x():.6f}, {point.y():.6f})')
+            #self.statusbar.showMessage(f'Fractional Pixel Position: ({point.x():.6f}, {point.y():.6f})')
+            pass
         else:
             #self.labelCoords.clear()
             self.statusbar.clearMessage()

@@ -9,25 +9,31 @@ class Marker(QGraphicsPixmapItem):
     prehighlighted_pixmap = None
     next_marker_id = 0
     
-    def _drawPixmap(self,r,color):
+    def _drawPixmap(self,r,color, outline_color):
         pxmap = QtGui.QPixmap(64,64)
         pxmap.fill(QtCore.Qt.transparent)
         painter = QtGui.QPainter(pxmap)
-        pen = QtGui.QPen(color)
-        painter.setPen(pen)
+
+        pen = QtGui.QPen(outline_color)
         pen.setWidth(5)
         painter.setPen(pen)
         painter.drawEllipse(32-r,32-r,2*r,2*r)
-        pen.setWidth(3)
-        painter.setPen(pen)
         painter.drawLine(32-r,32,64-(32-r),32)
         painter.drawLine(32,32-r,32,64-(32-r))
+
+        pen = QtGui.QPen(color)
+        pen.setWidth(1)
+        painter.setPen(pen)
+        painter.drawEllipse(32-r,32-r,2*r,2*r)
+        painter.drawLine(32-r,32,64-(32-r),32)
+        painter.drawLine(32,32-r,32,64-(32-r))
+
         return pxmap
 
     def _initPixmaps(self,r):
-        Marker.pixmap                = self._drawPixmap(r,QtGui.QColor(128,128,255))
-        Marker.selected_pixmap       = self._drawPixmap(r,QtGui.QColor(  0,  0,255))
-        Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColor(255,255,  0))    # unused
+        Marker.pixmap                = self._drawPixmap(r,QtGui.QColor(255,255,255),QtGui.QColor(  0,  0,  0)) # White on Black
+        Marker.selected_pixmap       = self._drawPixmap(r,QtGui.QColor(255,255,  0),QtGui.QColor(  0,  0,  0)) # Yellow on Black
+        Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColor(255,255,255),QtGui.QColor(  0,  0,  0))    # unused
 
     def __init__(self, view, pos, id=id):
         super().__init__()
@@ -37,13 +43,13 @@ class Marker(QGraphicsPixmapItem):
             Marker.next_marker_id += 1
         else:
             self.id = id
-        self.r = 25.0   # radius in pixels on a 64x64 pixmap
+        self.r = 20.0   # radius in pixels on a 64x64 pixmap
         if Marker.pixmap is None:
             self._initPixmaps(self.r)
         self.setPos(pos)
         self.setOffset(-32,-32)
         self.rect = QtCore.QRect(-32,-32,32,32)
-        self.setTransformationMode(QtCore.Qt.SmoothTransformation)
+        #self.setTransformationMode(QtCore.Qt.SmoothTransformation)
         self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
         self.setPixmap(Marker.pixmap)
         self.setView(view)
@@ -69,7 +75,8 @@ class Marker(QGraphicsPixmapItem):
         # one pixel in the view is how much in the scene?
         scale = (self.view.mapToScene(0,1) - self.view.mapToScene(0,0)).y()
         #print(f'scale = {scale}')
-        super().setScale(scale*10.0/self.r)
+        #super().setScale(scale*10.0/self.r)
+        super().setScale(scale)
         self.update()
 
     def mousePressEvent(self, event):
@@ -86,12 +93,17 @@ class Marker(QGraphicsPixmapItem):
     def contextMenuEvent(self, event):
         context_menu = QtWidgets.QMenu()
         if self in self.view._scene.selectedItems():
-            action = QtGui.QAction("Delete Selection")
-            action.triggered.connect(self.view.deleteSelection)
+            action1 = QtGui.QAction("Delete Selection")
+            action1.triggered.connect(self.view.deleteSelection)
+            context_menu.addAction(action1)
+            if len(self.view._scene.selectedItems()) > 1:
+                action2 = QtGui.QAction("Create Constraint")
+                action2.triggered.connect(self.view.createConstraint)
+                context_menu.addAction(action2)
         else:
             action = QtGui.QAction("Delete Marker")
             action.triggered.connect(self.deleteYourself)
-        context_menu.addAction(action)
+            context_menu.addAction(action)
         context_menu.exec(event.screenPos())
 
     # Atomic Action
