@@ -1,0 +1,10 @@
+[project]
+name = "rectify"
+version = "0.1.0"
+description = "App to prep photos for PCB reverse engineering"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pyside6>=6.10.0",
+    "scipy>=1.16.3",
+]
