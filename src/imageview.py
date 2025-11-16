@@ -6,6 +6,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QApplication
 
 from marker import Marker
+from constraint import ConstraintDialog
 
 SCALE_FACTOR = 1.25
 
@@ -235,7 +236,8 @@ class ImageView(QGraphicsView):
         item.setPos(pos)
     
     def createConstraint(self):
-        pass
+        dialog = ConstraintDialog(self)
+        dialog.exec()
 
     # TBD - we can make this more efficient later 
     # by using a dict of ids to items
