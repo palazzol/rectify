@@ -11,10 +11,13 @@ from undoredo import UndoRedoManager
 from configparser import ConfigParser
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle('Rectify')
-        self.viewer = ImageView(self)
+        self.undo_redo_manager = UndoRedoManager()
+        self.statusbar = QtWidgets.QStatusBar(self)
+        self.statusbar.setSizeGripEnabled(False)
+        self.viewer = ImageView(self, self.undo_redo_manager, self.statusbar)
         self.viewer.coordinatesChanged.connect(self.handleCoords)
         '''
         self.labelCoords = QtWidgets.QLabel(self)
@@ -30,9 +33,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.buttonPin.toggled.connect(self.viewer.setZoomPinned)
         '''
 
-        self.statusbar = QtWidgets.QStatusBar(self)
-        self.statusbar.setSizeGripEnabled(False)
-
         widget = QtWidgets.QWidget(self)
 
         layout = QtWidgets.QGridLayout(widget)
@@ -47,40 +47,38 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._createMenuBar()
 
-        self.undo_redo_manager = UndoRedoManager()
-
         self.config = ConfigParser()
         self.config.read('config.ini')
 
-        self._path = None
+        self._path: str | None = None
 
-    def keyReleaseEvent(self, event):
-        if event.key() == QtCore.Qt.Key_Z and event.modifiers() | QtCore.Qt.CTRL:
+    def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == QtCore.Qt.Key.Key_Z and event.modifiers() == QtCore.Qt.KeyboardModifier.ControlModifier:
             actionname = self.undo_redo_manager.undo()
             if actionname == '':
                 self.statusbar.showMessage('Nothing to Undo!')
             else:
                 self.statusbar.showMessage(f'{actionname} Undone')
-        elif event.key() == QtCore.Qt.Key_Y and event.modifiers() | QtCore.Qt.CTRL:
+        elif event.key() == QtCore.Qt.Key.Key_Y and event.modifiers() == QtCore.Qt.KeyboardModifier.ControlModifier:
             actionname = self.undo_redo_manager.redo()
             if actionname == '':
                 self.statusbar.showMessage('Nothing to Redo!')
             else:
                 self.statusbar.showMessage(f'{actionname} Redone')
-        elif event.key() == QtCore.Qt.Key_M and event.modifiers() == QtCore.Qt.NoModifier:
+        elif event.key() == QtCore.Qt.Key.Key_M and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             self.viewer.createMarkerAtCursor()
-        #elif event.key() == QtCore.Qt.Key_D and event.modifiers() == QtCore.Qt.NoModifier:
+        #elif event.key() == QtCore.Qt.Key.Key_D and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
         #    print('TBD - Delete Marker')
-        elif event.key() == QtCore.Qt.Key_C and event.modifiers() == QtCore.Qt.NoModifier:
+        elif event.key() == QtCore.Qt.Key.Key_C and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             if len(self.viewer._scene.selectedItems()) > 1:
                 self.viewer.createConstraint()
-        elif ((event.key() == QtCore.Qt.Key_Backspace) or (event.key() == QtCore.Qt.Key_Delete )) and event.modifiers() == QtCore.Qt.NoModifier:
+        elif ((event.key() == QtCore.Qt.Key.Key_Backspace) or (event.key() == QtCore.Qt.Key.Key_Delete )) and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             self.viewer.deleteSelection()
         else:
             pass
             #print(event.key(), event.isAutoRepeat(), event.keyCombination(), event.modifiers())
 
-    def _createMenuBar(self):
+    def _createMenuBar(self) -> None:
         menu_bar = self.menuBar()
 
         # File Menu
@@ -128,7 +126,7 @@ class MainWindow(QtWidgets.QMainWindow):
         #about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
         
-    def handleCoords(self, point):
+    def handleCoords(self, point: QtCore.QPointF) -> None:
         if not point.isNull():
             #self.labelCoords.setText(f'{point.x()}, {point.y()}')
             #self.statusbar.showMessage(f'Fractional Pixel Position: ({point.x():.6f}, {point.y():.6f})')
@@ -137,7 +135,7 @@ class MainWindow(QtWidgets.QMainWindow):
             #self.labelCoords.clear()
             self.statusbar.clearMessage()
 
-    def handleOpen(self):
+    def handleOpen(self) -> None:
         if (start := self._path) is None:
             start = QtCore.QStandardPaths.standardLocations(
                 QtCore.QStandardPaths.StandardLocation.PicturesLocation)[0]

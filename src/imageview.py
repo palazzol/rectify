@@ -4,7 +4,9 @@
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QApplication
+from typing import List, cast
 
+from undoredo import UndoRedoManager
 from marker import Marker
 from constraint import ConstraintDialog
 
@@ -13,9 +15,10 @@ SCALE_FACTOR = 1.25
 class ImageView(QGraphicsView):
     coordinatesChanged = QtCore.Signal(QtCore.QPointF)
 
-    def __init__(self, parent):
+    def __init__(self, parent: QtWidgets.QWidget | None, undo_redo_manager: UndoRedoManager, statusbar: QtWidgets.QStatusBar) -> None:
         super().__init__(parent)
-        self.parent = parent
+        self.undo_redo_manager = undo_redo_manager
+        self.statusbar = statusbar
         self._zoom = 0
         self._pinned = False
         self._empty = True
@@ -32,9 +35,9 @@ class ImageView(QGraphicsView):
         self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
 
         #self._scene.selectionChanged.connect(self.handleSelectionChange)
-        self.markerlist = []
+        self.markerlist: List[Marker] = []
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
         if self._photo.isUnderMouse():
             if len(self.items(QtCore.QRect(event.x(), event.y(), 1, 1))) > 1: # TBD need to ignore the image item!
                 super().contextMenuEvent(event) # Handle Items first
@@ -53,79 +56,79 @@ class ImageView(QGraphicsView):
                 context_menu.exec(event.globalPos())
 
     # Atomic Action
-    def createMarkerAtMenuPos(self):
+    def createMarkerAtMenuPos(self) -> None:
         pos = self.mapFromGlobal(self.menupos)
         point = self.mapToScene(pos)
         self.createMarker(point)
-        self.parent.undo_redo_manager.pushEndMark("Create Marker")
-        self.parent.statusbar.showMessage("Create Marker")
+        self.undo_redo_manager.pushEndMark("Create Marker")
+        self.statusbar.showMessage("Create Marker")
 
     # Atomic Action
-    def createMarkerAtCursor(self):
+    def createMarkerAtCursor(self) -> None:
         viewpos = self.mapFromGlobal(QtGui.QCursor.pos())
         point = self.mapToScene(viewpos)
         self.createMarker(point)
-        self.parent.undo_redo_manager.pushEndMark("Create Marker")
-        self.parent.statusbar.showMessage("Create Marker")
+        self.undo_redo_manager.pushEndMark("Create Marker")
+        self.statusbar.showMessage("Create Marker")
 
-    def createMarker(self, point, id=None):
-        marker = Marker(self,point,id)
+    def createMarker(self, point: QtCore.QPointF, mid: int | None = None) -> None:
+        marker = Marker(self,point,mid)
         self._scene.addItem(marker)
         self.markerlist.append(marker)
         marker.update()
-        #print(f'Created marker id={marker.id}')
-        self.parent.undo_redo_manager.pushAction(self.deleteMarker, marker.id)
+        #print(f'Created marker id={marker.mid}')
+        self.undo_redo_manager.pushAction(self.deleteMarker, marker.mid)
 
-    def deleteMarker(self, id):
-        marker = self.getItemById(id)
-        pos,id = marker.pos(),marker.id
+    def deleteMarker(self, mid: int) -> None:
+        marker = self.getItemById(mid)
+        pos,mid = marker.pos(),marker.mid
         self.markerlist.remove(marker)
         self._scene.removeItem(marker)
         #print(f'Deleted marker id={id}')
-        self.parent.undo_redo_manager.pushAction(self.createMarker, pos, id)
+        self.undo_redo_manager.pushAction(self.createMarker, pos, mid)
 
     # Atomic Action
-    def deleteSelection(self):
+    def deleteSelection(self) -> None:
         selectedItems = self._scene.selectedItems().copy()
         if len(selectedItems) == 0:
             return
-        for marker in selectedItems:
-            id = marker.id
-            self.deleteMarker(id)
-        self.parent.undo_redo_manager.pushEndMark("Delete Selection")
-        self.parent.statusbar.showMessage("Delete Selection")
+        for item in selectedItems:
+            mid = cast(Marker, item).mid
+            self.deleteMarker(mid)
+        self.undo_redo_manager.pushEndMark("Delete Selection")
+        self.statusbar.showMessage("Delete Selection")
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if not self.hasPhoto():
             return
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
             #print('Begin Window Select')
             self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
             super().mousePressEvent(event)
-        elif event.button() == QtCore.Qt.MiddleButton:
+        elif event.button() == QtCore.Qt.MouseButton.MiddleButton:
             #print('Begin Drag')
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-            fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.LeftButton, QtCore.Qt.LeftButton, event.modifiers());
+            fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.MouseButton.LeftButton, event.modifiers());
             super().mousePressEvent(fakeevent)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         if not self.hasPhoto():
             return
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
             #print('End Window Select')
             self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
             super().mouseReleaseEvent(event)
-        elif event.button() == QtCore.Qt.MiddleButton:
+        elif event.button() == QtCore.Qt.MouseButton.MiddleButton:
             if self.dragMode() == QGraphicsView.DragMode.ScrollHandDrag:
                 #print('End Drag')
                 self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
-                fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.LeftButton, QtCore.Qt.LeftButton, event.modifiers());
+                fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.MouseButton.LeftButton, event.modifiers());
                 super().mouseReleaseEvent(fakeevent)
 
-    def hasPhoto(self):
+    def hasPhoto(self) -> bool:
         return not self._empty
 
-    def resetView(self, scale=1):
+    def resetView(self, scale: float = 1.0) -> None:
         rect = QtCore.QRectF(self._photo.pixmap().rect())
         if not rect.isNull():
             self.setSceneRect(rect)
@@ -143,7 +146,7 @@ class ImageView(QGraphicsView):
                     self.centerOn(self._photo)
                 self.updateCoordinates()
 
-    def setPhoto(self, pixmap=None):
+    def setPhoto(self, pixmap: QtGui.QPixmap | None = None) -> None:
         if pixmap and not pixmap.isNull():
             self._empty = False
             #self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -156,16 +159,16 @@ class ImageView(QGraphicsView):
             self._zoom = 0
         self.resetView(SCALE_FACTOR ** self._zoom)
 
-    def zoomLevel(self):
+    def zoomLevel(self) -> float:
         return self._zoom
 
-    def zoomPinned(self):
+    def zoomPinned(self) -> bool:
         return self._pinned
 
-    def setZoomPinned(self, enable):
+    def setZoomPinned(self, enable: bool) -> None:
         self._pinned = bool(enable)
 
-    def zoom(self, step):
+    def zoom(self, step: float) -> None:
         zoom = max(0, self._zoom + (step := int(step)))
         if zoom != self._zoom:
             self._zoom = zoom
@@ -179,27 +182,27 @@ class ImageView(QGraphicsView):
                 self.resetView()
             self.updateMarkers()
 
-    def updateMarkers(self):
+    def updateMarkers(self) -> None:
         # Update Markers
         for marker in self.markerlist:
             marker.setView(self)
 
-    def wheelEvent(self, event):
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
         delta = event.angleDelta().y()
         self.zoom(delta and delta // abs(delta))
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         self.resetView()
         self.updateMarkers()
 
-    def toggleDragMode(self):
+    def toggleDragMode(self) -> None:
         if self.dragMode() == QGraphicsView.DragMode.ScrollHandDrag:
             self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
         elif not self._photo.pixmap().isNull():
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
 
-    def updateCoordinates(self, pos=None):
+    def updateCoordinates(self, pos: QtCore.QPoint | None = None) -> None:
         if self._photo.isUnderMouse():
             if pos is None:
                 pos = self.mapFromGlobal(QtGui.QCursor.pos())
@@ -209,11 +212,11 @@ class ImageView(QGraphicsView):
             point = QtCore.QPointF()
         self.coordinatesChanged.emit(point)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         self.updateCoordinates(event.position().toPoint())
         super().mouseMoveEvent(event)
 
-    def leaveEvent(self, event):
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
         self.coordinatesChanged.emit(QtCore.QPointF())
         super().leaveEvent(event)
 
@@ -221,28 +224,29 @@ class ImageView(QGraphicsView):
     #    print('Selection Changed!')
 
     # Atomic Action
-    def setSelectionDeltaPos(self, delta_pos):
+    def setSelectionDeltaPos(self, delta_pos: QtCore.QPointF) -> None:
         for item in self._scene.selectedItems():
             new_pos = item.pos()
             old_pos = new_pos - delta_pos
-            self.parent.undo_redo_manager.pushAction(self.moveMarker, item.id, old_pos)
-        self.parent.undo_redo_manager.pushEndMark("Move Selection")
-        self.parent.statusbar.showMessage("Move Selection")
+            marker = cast(Marker,item)
+            self.undo_redo_manager.pushAction(self.moveMarker, marker.mid, old_pos)
+        self.undo_redo_manager.pushEndMark("Move Selection")
+        self.statusbar.showMessage("Move Selection")
     
-    def moveMarker(self, id, pos):
-        item = self.getItemById(id)
+    def moveMarker(self, mid, pos: QtCore.QPointF) -> None:
+        item = self.getItemById(mid)
         old_pos = item.pos()
-        self.parent.undo_redo_manager.pushAction(self.moveMarker, id, old_pos)
+        self.undo_redo_manager.pushAction(self.moveMarker, mid, old_pos)
         item.setPos(pos)
     
-    def createConstraint(self):
+    def createConstraint(self) -> None:
         dialog = ConstraintDialog(self)
         dialog.exec()
 
     # TBD - we can make this more efficient later 
     # by using a dict of ids to items
-    def getItemById(self, id):
+    def getItemById(self, mid: int) -> Marker:
         for item in self.markerlist:
-            if item.id == id:
+            if item.mid == mid:
                 return item
-        return None
+        raise KeyError

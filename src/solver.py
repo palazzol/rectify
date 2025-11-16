@@ -12,7 +12,7 @@ class PointConstraint:
 
 @with_emitters
 class SVDSolver:
-    def __init__(self):
+    def __init__(self) -> None:
         self.constraints = []
 
     @emitter

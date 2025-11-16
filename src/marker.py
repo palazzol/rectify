@@ -2,16 +2,21 @@
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
+from typing import TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from imageview import ImageView
+
 # Use a scaled pixmap for marker graphics
 class Marker(QGraphicsPixmapItem):
-    pixmap = None
-    selected_pixmap = None
-    prehighlighted_pixmap = None
+    pixmaps_initialized: bool = False
+    unselected_pixmap:     QtGui.QPixmap
+    selected_pixmap:       QtGui.QPixmap
+    prehighlighted_pixmap: QtGui.QPixmap
     next_marker_id = 0
     
-    def _drawPixmap(self,r,color, outline_color):
+    def _drawPixmap(self, r: int, color: QtGui.QColor, outline_color: QtGui.QColor) -> QtGui.QPixmap:
         pxmap = QtGui.QPixmap(64,64)
-        pxmap.fill(QtCore.Qt.transparent)
+        pxmap.fill(QtGui.QColorConstants.Transparent)
         painter = QtGui.QPainter(pxmap)
 
         pen = QtGui.QPen(outline_color)
@@ -30,37 +35,38 @@ class Marker(QGraphicsPixmapItem):
 
         return pxmap
 
-    def _initPixmaps(self,r):
-        Marker.pixmap                = self._drawPixmap(r,QtGui.QColor(255,255,255),QtGui.QColor(  0,  0,  0)) # White on Black
+    def _initPixmaps(self,r: int) -> None:
+        Marker.unselected_pixmap     = self._drawPixmap(r,QtGui.QColor(255,255,255),QtGui.QColor(  0,  0,  0)) # White on Black
         Marker.selected_pixmap       = self._drawPixmap(r,QtGui.QColor(255,255,  0),QtGui.QColor(  0,  0,  0)) # Yellow on Black
         Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColor(255,255,255),QtGui.QColor(  0,  0,  0))    # unused
+        Marker.pixmaps_initialized = True
 
-    def __init__(self, view, pos, id=id):
+    def __init__(self, view: "ImageView", pos: QtCore.QPointF, mid:int | None = None) -> None:
         super().__init__()
         # Set the id if not given
-        if id == None:
-            self.id = Marker.next_marker_id
+        if mid is None:
+            self.mid = Marker.next_marker_id
             Marker.next_marker_id += 1
         else:
-            self.id = id
-        self.r = 20.0   # radius in pixels on a 64x64 pixmap
-        if Marker.pixmap is None:
+            self.mid = mid
+        self.r = 20   # radius in pixels on a 64x64 pixmap
+        if not Marker.pixmaps_initialized:
             self._initPixmaps(self.r)
         self.setPos(pos)
         self.setOffset(-32,-32)
         self.rect = QtCore.QRect(-32,-32,32,32)
         #self.setTransformationMode(QtCore.Qt.SmoothTransformation)
-        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
-        self.setPixmap(Marker.pixmap)
+        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setPixmap(Marker.unselected_pixmap)
         self.setView(view)
 
-    def itemChange(self, change, value):
+    def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
         # if selection state changed, swap the pixmap
-        if change == QGraphicsItem.ItemSelectedHasChanged:
+        if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
             if value:
                 self.setPixmap(Marker.selected_pixmap)
             else:
-                self.setPixmap(Marker.pixmap)
+                self.setPixmap(Marker.unselected_pixmap)
         return super().itemChange(change, value)
     
     def shape(self):
@@ -69,7 +75,7 @@ class Marker(QGraphicsPixmapItem):
         path.addEllipse(-self.r,-self.r,2*self.r,2*self.r)
         return path
 
-    def setView(self, view):
+    def setView(self, view: "ImageView"):
         # Pixmap scales with the View
         self.view = view    # TBD - maybe we should subscribe to changes instead
         # one pixel in the view is how much in the scene?
@@ -79,18 +85,18 @@ class Marker(QGraphicsPixmapItem):
         super().setScale(scale)
         self.update()
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         # Save pos to detect an interactive move
         self.mouse_pressed_pos = self.pos()
         super().mousePressEvent(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         # If we are being moved, the whole selection is being moved - notify the view
         if self.pos() != self.mouse_pressed_pos:
             self.view.setSelectionDeltaPos(self.pos() - self.mouse_pressed_pos)
         super().mouseReleaseEvent(event)
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
         context_menu = QtWidgets.QMenu()
         if self in self.view._scene.selectedItems():
             action1 = QtGui.QAction("Delete Selection")
@@ -107,7 +113,7 @@ class Marker(QGraphicsPixmapItem):
         context_menu.exec(event.screenPos())
 
     # Atomic Action
-    def deleteYourself(self):
-        self.view.deleteMarker(self.id)
-        self.view.parent.undo_redo_manager.pushEndMark("Delete Marker")
-        self.view.parent.statusbar.showMessage("Delete Marker")
+    def deleteYourself(self) -> None:
+        self.view.deleteMarker(self.mid)
+        self.view.undo_redo_manager.pushEndMark("Delete Marker")
+        self.view.statusbar.showMessage("Delete Marker")
