@@ -36,9 +36,9 @@ class Marker(QGraphicsPixmapItem):
         return pxmap
 
     def _initPixmaps(self,r: int) -> None:
-        Marker.unselected_pixmap     = self._drawPixmap(r,QtGui.QColor(255,255,255),QtGui.QColor(  0,  0,  0)) # White on Black
-        Marker.selected_pixmap       = self._drawPixmap(r,QtGui.QColor(255,255,  0),QtGui.QColor(  0,  0,  0)) # Yellow on Black
-        Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColor(255,255,255),QtGui.QColor(  0,  0,  0))    # unused
+        Marker.unselected_pixmap     = self._drawPixmap(r,QtGui.QColorConstants.White, QtGui.QColorConstants.Black) # White on Black
+        Marker.selected_pixmap       = self._drawPixmap(r,QtGui.QColorConstants.Yellow,QtGui.QColorConstants.Black) # Yellow on Black
+        Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColorConstants.White, QtGui.QColorConstants.Black)    # unused
         Marker.pixmaps_initialized = True
 
     def __init__(self, view: "ImageView", pos: QtCore.QPointF, mid:int | None = None) -> None:
