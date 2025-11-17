@@ -180,12 +180,6 @@ class ImageView(QGraphicsView):
                 self.scale(factor, factor)
             else:
                 self.resetView()
-            self.updateMarkers()
-
-    def updateMarkers(self) -> None:
-        # Update Markers
-        for marker in self.markerlist:
-            marker.setView(self)
 
     def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
         delta = event.angleDelta().y()
@@ -194,7 +188,6 @@ class ImageView(QGraphicsView):
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         self.resetView()
-        self.updateMarkers()
 
     def toggleDragMode(self) -> None:
         if self.dragMode() == QGraphicsView.DragMode.ScrollHandDrag:

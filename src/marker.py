@@ -57,8 +57,9 @@ class Marker(QGraphicsPixmapItem):
         self.rect = QtCore.QRect(-32,-32,32,32)
         #self.setTransformationMode(QtCore.Qt.SmoothTransformation)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
         self.setPixmap(Marker.unselected_pixmap)
-        self.setView(view)
+        self.view = view
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
         # if selection state changed, swap the pixmap
@@ -75,16 +76,6 @@ class Marker(QGraphicsPixmapItem):
         path.addEllipse(-self.r,-self.r,2*self.r,2*self.r)
         return path
 
-    def setView(self, view: ImageView):
-        # Pixmap scales with the View
-        self.view = view    # TBD - maybe we should subscribe to changes instead
-        # one pixel in the view is how much in the scene?
-        scale = (self.view.mapToScene(0,1) - self.view.mapToScene(0,0)).y()
-        #print(f'scale = {scale}')
-        #super().setScale(scale*10.0/self.r)
-        super().setScale(scale)
-        self.update()
-
     def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         # Save pos to detect an interactive move
         self.mouse_pressed_pos = self.pos()
@@ -98,11 +89,11 @@ class Marker(QGraphicsPixmapItem):
 
     def contextMenuEvent(self, event: QtWidgets.QGraphicsSceneContextMenuEvent) -> None:
         context_menu = QtWidgets.QMenu()
-        if self in self.view._scene.selectedItems():
+        if self in self.scene().selectedItems():
             action1 = QtGui.QAction("Delete Selection")
             action1.triggered.connect(self.view.deleteSelection)
             context_menu.addAction(action1)
-            if len(self.view._scene.selectedItems()) > 1:
+            if len(self.scene().selectedItems()) > 1:
                 action2 = QtGui.QAction("Create Constraint")
                 action2.triggered.connect(self.view.createConstraint)
                 context_menu.addAction(action2)
