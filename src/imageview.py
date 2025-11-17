@@ -3,8 +3,8 @@
 # Retrieved 2025-11-09, License - CC BY-SA 4.0
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QApplication
-from typing import List, cast
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+from typing import cast
 
 from undoredo import UndoRedoManager
 from marker import Marker
@@ -35,7 +35,7 @@ class ImageView(QGraphicsView):
         self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
 
         #self._scene.selectionChanged.connect(self.handleSelectionChange)
-        self.markerlist: List[Marker] = []
+        self.markerlist: list[Marker] = []
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
         if self._photo.isUnderMouse():
@@ -108,7 +108,7 @@ class ImageView(QGraphicsView):
         elif event.button() == QtCore.Qt.MouseButton.MiddleButton:
             #print('Begin Drag')
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-            fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.MouseButton.LeftButton, event.modifiers());
+            fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.MouseButton.LeftButton, event.modifiers())
             super().mousePressEvent(fakeevent)
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
@@ -122,7 +122,7 @@ class ImageView(QGraphicsView):
             if self.dragMode() == QGraphicsView.DragMode.ScrollHandDrag:
                 #print('End Drag')
                 self.setDragMode(QtWidgets.QGraphicsView.DragMode.NoDrag)
-                fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.MouseButton.LeftButton, event.modifiers());
+                fakeevent = QtGui.QMouseEvent(event.type(), event.pos(), QtCore.Qt.MouseButton.LeftButton, QtCore.Qt.MouseButton.LeftButton, event.modifiers())
                 super().mouseReleaseEvent(fakeevent)
 
     def hasPhoto(self) -> bool:
@@ -228,7 +228,7 @@ class ImageView(QGraphicsView):
         for item in self._scene.selectedItems():
             new_pos = item.pos()
             old_pos = new_pos - delta_pos
-            marker = cast(Marker,item)
+            marker = cast(Marker, item)
             self.undo_redo_manager.pushAction(self.moveMarker, marker.mid, old_pos)
         self.undo_redo_manager.pushEndMark("Move Selection")
         self.statusbar.showMessage("Move Selection")

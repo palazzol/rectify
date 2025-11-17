@@ -41,7 +41,7 @@ class Marker(QGraphicsPixmapItem):
         Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColor("#FFFFFF"), QtGui.QColor("#000000"))    # unused
         Marker.pixmaps_initialized = True
 
-    def __init__(self, view: "ImageView", pos: QtCore.QPointF, mid:int | None = None) -> None:
+    def __init__(self, view: ImageView, pos: QtCore.QPointF, mid:int | None = None) -> None:
         super().__init__()
         # Set the id if not given
         if mid is None:
@@ -69,13 +69,13 @@ class Marker(QGraphicsPixmapItem):
                 self.setPixmap(Marker.unselected_pixmap)
         return super().itemChange(change, value)
     
-    def shape(self):
+    def shape(self) -> QtGui.QPainterPath:
         # Outline for precise picking
         path = QtGui.QPainterPath()
         path.addEllipse(-self.r,-self.r,2*self.r,2*self.r)
         return path
 
-    def setView(self, view: "ImageView"):
+    def setView(self, view: ImageView):
         # Pixmap scales with the View
         self.view = view    # TBD - maybe we should subscribe to changes instead
         # one pixel in the view is how much in the scene?

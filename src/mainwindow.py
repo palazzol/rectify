@@ -4,7 +4,6 @@
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QGraphicsView
 
 from imageview import ImageView
 from undoredo import UndoRedoManager

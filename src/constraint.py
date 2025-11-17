@@ -1,6 +1,6 @@
 
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QApplication, QDialog
+from PySide6.QtWidgets import QDialog
 
 class ConstraintDialog(QDialog):
     def __init__(self, parent: QtWidgets.QWidget) -> None:
