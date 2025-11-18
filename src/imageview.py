@@ -6,7 +6,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 from typing import cast
 
-from undoredo import UndoRedoManager
+from undoredo import undoContext, UndoContext
 from marker import Marker
 from constraint import ConstraintDialog
 
@@ -15,9 +15,8 @@ SCALE_FACTOR = 1.25
 class ImageView(QGraphicsView):
     coordinatesChanged = QtCore.Signal(QtCore.QPointF)
 
-    def __init__(self, parent: QtWidgets.QWidget | None, undo_redo_manager: UndoRedoManager, statusbar: QtWidgets.QStatusBar) -> None:
+    def __init__(self, parent: QtWidgets.QWidget | None, statusbar: QtWidgets.QStatusBar) -> None:
         super().__init__(parent)
-        self.undo_redo_manager = undo_redo_manager
         self.statusbar = statusbar
         self._zoom = 0
         self._pinned = False
@@ -57,45 +56,45 @@ class ImageView(QGraphicsView):
 
     # Atomic Action
     def createMarkerAtMenuPos(self) -> None:
-        pos = self.mapFromGlobal(self.menupos)
-        point = self.mapToScene(pos)
-        self.createMarker(point)
-        self.undo_redo_manager.pushEndMark("Create Marker")
-        self.statusbar.showMessage("Create Marker")
+        with undoContext("Create Marker") as uctx:
+            pos = self.mapFromGlobal(self.menupos)
+            point = self.mapToScene(pos)
+            self.createMarker(uctx, point)
+            self.statusbar.showMessage("Create Marker")
 
     # Atomic Action
     def createMarkerAtCursor(self) -> None:
-        viewpos = self.mapFromGlobal(QtGui.QCursor.pos())
-        point = self.mapToScene(viewpos)
-        self.createMarker(point)
-        self.undo_redo_manager.pushEndMark("Create Marker")
-        self.statusbar.showMessage("Create Marker")
+        with undoContext("Create Marker") as uctx:
+            viewpos = self.mapFromGlobal(QtGui.QCursor.pos())
+            point = self.mapToScene(viewpos)
+            self.createMarker(uctx, point)
+            self.statusbar.showMessage("Create Marker")
 
-    def createMarker(self, point: QtCore.QPointF, mid: int | None = None) -> None:
+    def createMarker(self, uctx: UndoContext, point: QtCore.QPointF, mid: int | None = None) -> None:
         marker = Marker(self,point,mid)
         self._scene.addItem(marker)
         self.markerlist.append(marker)
         marker.update()
         #print(f'Created marker id={marker.mid}')
-        self.undo_redo_manager.pushAction(self.deleteMarker, marker.mid)
+        uctx.recordAction(self.deleteMarker, uctx, marker.mid)
 
-    def deleteMarker(self, mid: int) -> None:
+    def deleteMarker(self, uctx: UndoContext, mid: int ) -> None:
         marker = self.getItemById(mid)
         pos,mid = marker.pos(),marker.mid
         self.markerlist.remove(marker)
         self._scene.removeItem(marker)
         #print(f'Deleted marker id={id}')
-        self.undo_redo_manager.pushAction(self.createMarker, pos, mid)
+        uctx.recordAction(self.createMarker, uctx, pos, mid)
 
     # Atomic Action
     def deleteSelection(self) -> None:
-        selectedItems = self._scene.selectedItems().copy()
-        if len(selectedItems) == 0:
-            return
-        for item in selectedItems:
-            mid = cast(Marker, item).mid
-            self.deleteMarker(mid)
-        self.undo_redo_manager.pushEndMark("Delete Selection")
+        with undoContext("Delete Selection") as uctx:
+            selectedItems = self._scene.selectedItems().copy()
+            if len(selectedItems) == 0:
+                return
+            for item in selectedItems:
+                mid = cast(Marker, item).mid
+                self.deleteMarker(uctx, mid)
         self.statusbar.showMessage("Delete Selection")
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
@@ -218,18 +217,18 @@ class ImageView(QGraphicsView):
 
     # Atomic Action
     def setSelectionDeltaPos(self, delta_pos: QtCore.QPointF) -> None:
-        for item in self._scene.selectedItems():
-            new_pos = item.pos()
-            old_pos = new_pos - delta_pos
-            marker = cast(Marker, item)
-            self.undo_redo_manager.pushAction(self.moveMarker, marker.mid, old_pos)
-        self.undo_redo_manager.pushEndMark("Move Selection")
+        with undoContext("Move Selection") as uctx:
+            for item in self._scene.selectedItems():
+                new_pos = item.pos()
+                old_pos = new_pos - delta_pos
+                marker = cast(Marker, item)
+                uctx.recordAction(self.moveMarker, uctx, marker.mid, old_pos)
         self.statusbar.showMessage("Move Selection")
     
-    def moveMarker(self, mid, pos: QtCore.QPointF) -> None:
+    def moveMarker(self, uctx: UndoContext, mid, pos: QtCore.QPointF) -> None:
         item = self.getItemById(mid)
         old_pos = item.pos()
-        self.undo_redo_manager.pushAction(self.moveMarker, mid, old_pos)
+        uctx.recordAction(self.moveMarker, uctx, mid, old_pos)
         item.setPos(pos)
     
     def createConstraint(self) -> None:

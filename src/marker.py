@@ -1,6 +1,7 @@
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
+from undoredo import undoContext
 
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
@@ -105,6 +106,7 @@ class Marker(QGraphicsPixmapItem):
 
     # Atomic Action
     def deleteYourself(self) -> None:
-        self.view.deleteMarker(self.mid)
-        self.view.undo_redo_manager.pushEndMark("Delete Marker")
+        with undoContext("Delete Marker") as uctx:
+            uctx.recordAction(self.view.createMarker, uctx, self.pos(), self.mid)
+            self.view.deleteMarker(uctx, self.mid)
         self.view.statusbar.showMessage("Delete Marker")

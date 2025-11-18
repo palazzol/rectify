@@ -6,17 +6,16 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtGui import QAction
 
 from imageview import ImageView
-from undoredo import UndoRedoManager
+from undoredo import undo, redo
 from configparser import ConfigParser
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle('Rectify')
-        self.undo_redo_manager = UndoRedoManager()
         self.statusbar = QtWidgets.QStatusBar(self)
         self.statusbar.setSizeGripEnabled(False)
-        self.viewer = ImageView(self, self.undo_redo_manager, self.statusbar)
+        self.viewer = ImageView(self, self.statusbar)
         self.viewer.coordinatesChanged.connect(self.handleCoords)
         '''
         self.labelCoords = QtWidgets.QLabel(self)
@@ -53,17 +52,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.key() == QtCore.Qt.Key.Key_Z and event.modifiers() == QtCore.Qt.KeyboardModifier.ControlModifier:
-            actionname = self.undo_redo_manager.undo()
-            if actionname == '':
-                self.statusbar.showMessage('Nothing to Undo!')
-            else:
-                self.statusbar.showMessage(f'{actionname} Undone')
+            self.handleUndo()
         elif event.key() == QtCore.Qt.Key.Key_Y and event.modifiers() == QtCore.Qt.KeyboardModifier.ControlModifier:
-            actionname = self.undo_redo_manager.redo()
-            if actionname == '':
-                self.statusbar.showMessage('Nothing to Redo!')
-            else:
-                self.statusbar.showMessage(f'{actionname} Redone')
+            self.handleRedo()
         elif event.key() == QtCore.Qt.Key.Key_M and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             self.viewer.createMarkerAtCursor()
         #elif event.key() == QtCore.Qt.Key.Key_D and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
@@ -118,13 +109,39 @@ class MainWindow(QtWidgets.QMainWindow):
         #paste_action.triggered.connect(lambda: self._edit_action("Paste"))
         edit_menu.addAction(paste_action)
 
+        undo_action = QAction("Undo", self)
+        undo_action.setShortcut("Ctrl+Z")
+        undo_action.setStatusTip("Undo last action")
+        undo_action.triggered.connect(self.handleUndo)
+        edit_menu.addAction(undo_action)
+
+        redo_action = QAction("Redo", self)
+        redo_action.setShortcut("Ctrl+Y")
+        redo_action.setStatusTip("Redo last action")
+        redo_action.triggered.connect(self.handleRedo)
+        edit_menu.addAction(redo_action)
+
         # Help Menu
         help_menu = menu_bar.addMenu("&Help")
         about_action = QAction("&About", self)
         about_action.setStatusTip("About this application")
         #about_action.triggered.connect(self._show_about)
         help_menu.addAction(about_action)
-        
+
+    def handleUndo(self) -> None:
+        msg = undo()
+        if msg == '':
+            self.statusbar.showMessage('Nothing to Undo!')
+        else:
+            self.statusbar.showMessage(f'{msg} Undone')
+
+    def handleRedo(self) -> None:
+        msg = redo()
+        if msg == '':
+            self.statusbar.showMessage('Nothing to Redo!')
+        else:
+            self.statusbar.showMessage(f'{msg} Redone')
+
     def handleCoords(self, point: QtCore.QPointF) -> None:
         if not point.isNull():
             #self.labelCoords.setText(f'{point.x()}, {point.y()}')
