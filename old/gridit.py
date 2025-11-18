@@ -42,7 +42,7 @@ def tagsGetValue(tags,tagstring):
 class Marker:
     next_marker_id = 0
     def __init__(self, image_x, image_y, id=id, mtype = 0):
-        if id == None:
+        if id is None:
             self.id = Marker.next_marker_id
         else:
             self.id = id
