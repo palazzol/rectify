@@ -7,7 +7,6 @@ from PySide6.QtGui import QAction
 
 from imageview import ImageView
 from undoredo import undo, redo
-from configparser import ConfigParser
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
@@ -44,9 +43,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(widget)
 
         self._createMenuBar()
-
-        self.config = ConfigParser()
-        self.config.read('config.ini')
 
         self._path: str | None = None
 

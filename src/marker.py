@@ -1,6 +1,7 @@
 
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
+from configparser import ConfigParser
 from undoredo import undoContext
 
 from typing import TYPE_CHECKING, Any
@@ -13,33 +14,56 @@ class Marker(QGraphicsPixmapItem):
     unselected_pixmap:     QtGui.QPixmap
     selected_pixmap:       QtGui.QPixmap
     prehighlighted_pixmap: QtGui.QPixmap
+    r = 0
+    offset = 0
     next_marker_id = 0
     
-    def _drawPixmap(self, r: int, color: QtGui.QColor, outline_color: QtGui.QColor) -> QtGui.QPixmap:
-        pxmap = QtGui.QPixmap(64,64)
+    def _drawPixmap(self, size: int, r: int, color: QtGui.QColor, outline_color: QtGui.QColor) -> QtGui.QPixmap:
+        center = size // 2
+        pxmap = QtGui.QPixmap(size,size)
         pxmap.fill(QtGui.QColorConstants.Transparent)
         painter = QtGui.QPainter(pxmap)
 
         pen = QtGui.QPen(outline_color)
-        pen.setWidth(5)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        pen.setWidth(4)
         painter.setPen(pen)
-        painter.drawEllipse(32-r,32-r,2*r,2*r)
-        painter.drawLine(32-r,32,64-(32-r),32)
-        painter.drawLine(32,32-r,32,64-(32-r))
+        painter.drawEllipse(QtCore.QRectF(center-r+0.5,center-r+0.5,2*r,2*r))
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
+        pen.setWidth(3)
+        painter.setPen(pen)
+        painter.drawLine(QtCore.QPointF(center-r+0.5,center+0.5),QtCore.QPointF(size-(center-r)+0.5,center+0.5))
+        painter.drawLine(QtCore.QPointF(center+0.5,center-r+0.5),QtCore.QPointF(center+0.5,size-(center-r)+0.5))
 
         pen = QtGui.QPen(color)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        pen.setWidth(2)
+        painter.setPen(pen)
+        painter.drawEllipse(QtCore.QRectF(center-r+0.5,center-r+0.5,2*r,2*r))
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
         pen.setWidth(1)
         painter.setPen(pen)
-        painter.drawEllipse(32-r,32-r,2*r,2*r)
-        painter.drawLine(32-r,32,64-(32-r),32)
-        painter.drawLine(32,32-r,32,64-(32-r))
+        painter.drawLine(QtCore.QPointF(center-r+0.5,center+0.5),QtCore.QPointF(size-(center-r)+0.5,center+0.5))
+        painter.drawLine(QtCore.QPointF(center+0.5,center-r+0.5),QtCore.QPointF(center+0.5,size-(center-r)+0.5))
 
         return pxmap
 
-    def _initPixmaps(self,r: int) -> None:
-        Marker.unselected_pixmap     = self._drawPixmap(r,QtGui.QColor("#FFFFFF"), QtGui.QColor("#000000")) # White on Black
-        Marker.selected_pixmap       = self._drawPixmap(r,QtGui.QColor("#FFFF00"), QtGui.QColor("#000000")) # Yellow on Black
-        Marker.prehighlighted_pixmap = self._drawPixmap(r,QtGui.QColor("#FFFFFF"), QtGui.QColor("#000000"))    # unused
+    def _initPixmaps(self) -> None:
+        config = ConfigParser()
+        config.read('config.ini')
+        size = config.getint('Marker', 'pixmap_size', fallback=64)
+        r    = config.getint('Marker', 'radius', fallback=20)    
+        unselected_color       = QtGui.QColor(config.get('Marker', 'color_default', fallback='#FFFFFF'))
+        selected_color         = QtGui.QColor(config.get('Marker', 'color_selected', fallback='#FFFF00'))
+        prehighlighted_color   = QtGui.QColor(config.get('Marker', 'color_prehighlighted', fallback='#0000FF'))
+        Marker.unselected_pixmap     = self._drawPixmap(size,r,unselected_color,     QtGui.QColor("#000000"))
+        Marker.selected_pixmap       = self._drawPixmap(size,r,selected_color,       QtGui.QColor("#000000"))
+        Marker.prehighlighted_pixmap = self._drawPixmap(size,r,prehighlighted_color, QtGui.QColor("#000000"))    # unused
+        Marker.unselected_pixmap.save("unselected_pixmap.png", "PNG")
+        Marker.selected_pixmap.save("selected_pixmap.png", "PNG")
+        Marker.prehighlighted_pixmap.save("prehighlighted_pixmap.png", "PNG")
+        Marker.offset = size // 2
+        Marker.r = r
         Marker.pixmaps_initialized = True
 
     def __init__(self, view: ImageView, pos: QtCore.QPointF, mid:int | None = None) -> None:
@@ -50,12 +74,11 @@ class Marker(QGraphicsPixmapItem):
             Marker.next_marker_id += 1
         else:
             self.mid = mid
-        self.r = 20   # radius in pixels on a 64x64 pixmap
         if not Marker.pixmaps_initialized:
-            self._initPixmaps(self.r)
+           self._initPixmaps()
         self.setPos(pos)
-        self.setOffset(-32,-32)
-        self.rect = QtCore.QRect(-32,-32,32,32)
+        self.setOffset(-Marker.offset,-Marker.offset)
+        #self.rect = QtCore.QRect(-(Marker.offset),-(Marker.offset),Marker.offset,Marker.offset)
         #self.setTransformationMode(QtCore.Qt.SmoothTransformation)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
@@ -74,7 +97,7 @@ class Marker(QGraphicsPixmapItem):
     def shape(self) -> QtGui.QPainterPath:
         # Outline for precise picking
         path = QtGui.QPainterPath()
-        path.addEllipse(-self.r,-self.r,2*self.r,2*self.r)
+        path.addEllipse(-Marker.r,-Marker.r,2*Marker.r,2*Marker.r)
         return path
 
     def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
