@@ -3,6 +3,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 from configparser import ConfigParser
 from undoredo import undoContext
+from pathlib import Path
 
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
@@ -14,17 +15,27 @@ class Marker(QGraphicsPixmapItem):
     unselected_pixmap:     QtGui.QPixmap
     selected_pixmap:       QtGui.QPixmap
     prehighlighted_pixmap: QtGui.QPixmap
+    prehighlighted_selected_pixmap: QtGui.QPixmap
     r = 0
     offset = 0
     next_marker_id = 0
     
-    def _drawPixmap(self, size: int, r: int, color: QtGui.QColor, outline_color: QtGui.QColor) -> QtGui.QPixmap:
+    def _drawPixmap(self, size: int, r: int, color: QtGui.QColor, prehighlight_color: QtGui.QColor, border_color: QtGui.QColor) -> QtGui.QPixmap:
         center = size // 2
         pxmap = QtGui.QPixmap(size,size)
         pxmap.fill(QtGui.QColorConstants.Transparent)
         painter = QtGui.QPainter(pxmap)
 
-        pen = QtGui.QPen(outline_color)
+        # Test routine
+        brush = QtGui.QBrush(QtGui.QColor(prehighlight_color))
+        pen = QtGui.QPen(color)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        painter.setBrush(brush)
+        pen.setWidth(2)
+        painter.setPen(pen)
+        painter.drawEllipse(QtCore.QRectF(center-r+0.5,center-r+0.5,2*r,2*r))
+        
+        pen = QtGui.QPen(border_color)
         painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
         pen.setWidth(4)
         painter.setPen(pen)
@@ -52,16 +63,20 @@ class Marker(QGraphicsPixmapItem):
         config = ConfigParser()
         config.read('config.ini')
         size = config.getint('Marker', 'pixmap_size', fallback=64)
-        r    = config.getint('Marker', 'radius', fallback=20)    
-        unselected_color       = QtGui.QColor(config.get('Marker', 'color_default', fallback='#FFFFFF'))
-        selected_color         = QtGui.QColor(config.get('Marker', 'color_selected', fallback='#FFFF00'))
-        prehighlighted_color   = QtGui.QColor(config.get('Marker', 'color_prehighlighted', fallback='#0000FF'))
-        Marker.unselected_pixmap     = self._drawPixmap(size,r,unselected_color,     QtGui.QColor("#000000"))
-        Marker.selected_pixmap       = self._drawPixmap(size,r,selected_color,       QtGui.QColor("#000000"))
-        Marker.prehighlighted_pixmap = self._drawPixmap(size,r,prehighlighted_color, QtGui.QColor("#000000"))    # unused
-        Marker.unselected_pixmap.save("unselected_pixmap.png", "PNG")
-        Marker.selected_pixmap.save("selected_pixmap.png", "PNG")
-        Marker.prehighlighted_pixmap.save("prehighlighted_pixmap.png", "PNG")
+        r    = config.getint('Marker', 'radius', fallback=20)
+        transparent_color      = QtGui.QColor("#00ffffff")
+        unselected_color       = QtGui.QColor(config.get('Marker', 'color_default', fallback='#ffffffff'))
+        selected_color         = QtGui.QColor(config.get('Marker', 'color_selected', fallback='#ffffff00'))
+        prehighlighted_color   = QtGui.QColor(config.get('Marker', 'color_prehighlighted', fallback='#10ffff00'))
+        border_color            = QtGui.QColor(config.get('Marker', 'color_border', fallback='#000000'))
+        Marker.unselected_pixmap                = self._drawPixmap(size,r,unselected_color,   transparent_color,border_color)
+        Marker.selected_pixmap                  = self._drawPixmap(size,r,  selected_color,   transparent_color,border_color)
+        Marker.prehighlighted_pixmap            = self._drawPixmap(size,r,unselected_color,prehighlighted_color,border_color)    # unused
+        Marker.prehighlighted_selected_pixmap   = self._drawPixmap(size,r,  selected_color,prehighlighted_color,border_color)    # unused
+        Marker.unselected_pixmap.save(str(Path('images') / 'unselected_pixmap.png'), 'png')
+        Marker.selected_pixmap.save(str(Path('images') / 'selected_pixmap.png'), 'png')
+        Marker.prehighlighted_pixmap.save(str(Path('images') / 'prehighlighted_pixmap.png'), 'png')
+        Marker.prehighlighted_selected_pixmap.save(str(Path('images') / 'prehighlighted_selected_pixmap.png'), 'png')
         Marker.offset = size // 2
         Marker.r = r
         Marker.pixmaps_initialized = True
@@ -82,6 +97,7 @@ class Marker(QGraphicsPixmapItem):
         #self.setTransformationMode(QtCore.Qt.SmoothTransformation)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+        self.setAcceptHoverEvents(True)
         self.setPixmap(Marker.unselected_pixmap)
         self.view = view
 
@@ -100,6 +116,20 @@ class Marker(QGraphicsPixmapItem):
         path.addEllipse(-Marker.r,-Marker.r,2*Marker.r,2*Marker.r)
         return path
 
+    def hoverEnterEvent(self, event):
+        if self.isSelected():
+            self.setPixmap(Marker.prehighlighted_selected_pixmap)
+        else:
+            self.setPixmap(Marker.prehighlighted_pixmap)
+        return super().hoverEnterEvent(event)
+    
+    def hoverLeaveEvent(self, event):
+        if self.isSelected():
+            self.setPixmap(Marker.selected_pixmap)
+        else:
+            self.setPixmap(Marker.unselected_pixmap)
+        return super().hoverLeaveEvent(event)
+    
     def mousePressEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         # Save pos to detect an interactive move
         self.mouse_pressed_pos = self.pos()
