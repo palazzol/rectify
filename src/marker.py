@@ -107,6 +107,5 @@ class Marker(QGraphicsPixmapItem):
     # Atomic Action
     def deleteYourself(self) -> None:
         with undoContext("Delete Marker") as uctx:
-            uctx.recordAction(self.view.createMarker, uctx, self.pos(), self.mid)
             self.view.deleteMarker(uctx, self.mid)
         self.view.statusbar.showMessage("Delete Marker")
