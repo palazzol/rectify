@@ -37,7 +37,7 @@ class Marker(QGraphicsPixmapItem):
         
         pen = QtGui.QPen(border_color)
         painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
-        pen.setWidth(4)
+        pen.setWidth(5)
         painter.setPen(pen)
         painter.drawEllipse(QtCore.QRectF(center-r+0.5,center-r+0.5,2*r,2*r))
         painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
@@ -61,14 +61,14 @@ class Marker(QGraphicsPixmapItem):
 
     def _initPixmaps(self) -> None:
         config = ConfigParser()
-        config.read('config.ini')
+        config.read(str(Path('config') / 'config.ini'))
         size = config.getint('Marker', 'pixmap_size', fallback=64)
-        r    = config.getint('Marker', 'radius', fallback=20)
+        r    = config.getint('Marker', 'radius', fallback=25)
         transparent_color      = QtGui.QColor("#00ffffff")
         unselected_color       = QtGui.QColor(config.get('Marker', 'color_default', fallback='#ffffffff'))
         selected_color         = QtGui.QColor(config.get('Marker', 'color_selected', fallback='#ffffff00'))
         prehighlighted_color   = QtGui.QColor(config.get('Marker', 'color_prehighlighted', fallback='#10ffff00'))
-        border_color            = QtGui.QColor(config.get('Marker', 'color_border', fallback='#000000'))
+        border_color           = QtGui.QColor(config.get('Marker', 'color_border', fallback='#000000'))
         Marker.unselected_pixmap                = self._drawPixmap(size,r,unselected_color,   transparent_color,border_color)
         Marker.selected_pixmap                  = self._drawPixmap(size,r,  selected_color,   transparent_color,border_color)
         Marker.prehighlighted_pixmap            = self._drawPixmap(size,r,unselected_color,prehighlighted_color,border_color)    # unused
