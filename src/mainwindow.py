@@ -51,11 +51,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._path: str | None = None
 
     def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
-        if event.key() == QtCore.Qt.Key.Key_Z and event.modifiers() == QtCore.Qt.KeyboardModifier.ControlModifier:
-            self.handleUndo()
-        elif event.key() == QtCore.Qt.Key.Key_Y and event.modifiers() == QtCore.Qt.KeyboardModifier.ControlModifier:
-            self.handleRedo()
-        elif event.key() == QtCore.Qt.Key.Key_M and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
+        if event.key() == QtCore.Qt.Key.Key_M and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             self.viewer.createMarkerAtCursor()
         #elif event.key() == QtCore.Qt.Key.Key_D and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
         #    print('TBD - Delete Marker')
