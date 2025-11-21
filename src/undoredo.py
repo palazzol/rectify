@@ -15,7 +15,7 @@
 # to undo or redo the action group as a unit.
 #
 
-from enum import Enum
+from enum import Enum, auto
 from typing import Callable, Any
 
 from contextlib import AbstractContextManager
@@ -41,22 +41,13 @@ class UndoContext(AbstractContextManager):
         self.desc = desc
 
     def __enter__(self) -> UndoContext:
-        if _urm.insideContext:
-            raise RuntimeError("Nested UndoContext is not supported")
-        _urm.insideContext = True
-        return self
+        return _urm.enterContext(self)
     
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-
-        if exc_type is None:
-            _urm.pushEndMark(self.desc)
-        else:
-            pass
-            # TBD - rollback?
-        _urm.insideContext = False
+        _urm.exitContext(self, exc_type, exc_value, traceback)
 
     def recordAction(self, function: Callable, *args, **kwargs) -> None:
-        _urm.pushAction(function, *args, **kwargs)
+        _urm.recordAction(self, function, *args, **kwargs)
 
 # Private Implementation
 
@@ -78,12 +69,13 @@ class _UndoRedoManager:
 
     class Mode(Enum):
         # This enum is used to describe what we are doing at the moment
-        DOING = 1,
-        UNDOING = 2,
-        REDOING = 3
+        DOING = auto(),
+        UNDOING = auto(),
+        REDOING = auto()
 
     def __init__(self) -> None:
-        # Used to detect nested contexts
+        # Used to determine when we are inside an UndoContext, and
+        # to detect nested contexts
         self.insideContext = False
         # Used to determine if any actions were pushed during undo/redo
         self.actions_pushed = False
@@ -100,8 +92,6 @@ class _UndoRedoManager:
         action = _UndoRedoManager.Action(function, *args, **kwargs)
         # When pushing an Action, different things happen depending what we are doing
         if self.mode == _UndoRedoManager.Mode.DOING:
-            if not self.insideContext:
-                raise RuntimeError('UndoRedoManager: pushAction outside UndoContext')
             if self.redo_stack != []:
                 self.redo_stack.clear()
             self.undo_stack.append(action)
@@ -112,7 +102,7 @@ class _UndoRedoManager:
             self.undo_stack.append(action)
             self.actions_pushed = True
 
-    def pushEndMark(self, desc = "Undescribed") -> None:
+    def pushEndMark(self, desc) -> None:
         # We only allow pushing end marks here in DOING mode
         # End marks during UNDOING or REDOING happen via direct calls to pushAction()
         if self.mode == _UndoRedoManager.Mode.DOING:
@@ -128,43 +118,45 @@ class _UndoRedoManager:
 
     # Note: Undo and Redo are the same code, except for the mode and the stacks involved
     def undoOrRedo(self, opname: str, mode: Mode, stack: list[_UndoRedoManager.Action]) -> str:
+        if stack == []:
+            # If there is nothing to undo/redo, return empty string
+            return ''
         # Set the mode to UNDOING or REDOING
         self.mode = mode
-        if stack != []:
-            # The top of the stack should always be an endMarkFunction
-            endaction = stack.pop()
-            if endaction.function != self.endMarkFunction: # this shouldn't happen
-                msg = f'UndoRedoManager: {opname}ing without Mark!'
+        # The top of the stack should always be an endMarkFunction
+        endaction = stack.pop()
+        if endaction.function != self.endMarkFunction: # this shouldn't happen
+            msg = f'UndoRedoManager: {opname}ing without Mark!'
+            raise RuntimeError(msg)
+        # Extract and save the description of the action group
+        desc = endaction.args[0]
+        # Now execute actions until we hit the next endMarkFunction
+        # and track if any new actions are pushed during the process
+        self.actions_pushed = False
+        done = False
+        while not done:
+            if stack == []: # this shouldn't happen
+                msg = f'UndoRedoManager: {opname}ing with no Action!'
                 raise RuntimeError(msg)
-            # Extract the description of the action group
-            desc = endaction.args[0]
-            # Now execute actions until we hit the next endMarkFunction
-            # and track if any new actions are pushed during the process
-            self.actions_pushed = False
-            done = False
-            while not done:
-                if stack == []: # this shouldn't happen
-                    msg = f'UndoRedoManager: {opname}ing with no Action!'
-                    raise RuntimeError(msg)
-                if stack[-1].function == self.endMarkFunction:
+            if stack[-1].function == self.endMarkFunction:
+                done = True
+            else:
+                # Execute the next action
+                stack.pop().execute()
+                if stack == []:
                     done = True
-                else:
-                    # Execute the next action
-                    stack.pop().execute()
-                    if stack == []:
-                        done = True
-            # If any actions were pushed during the undo/redo,
-            # We push a new endMarkFunction to mark the end of the group
-            # and return the description
-            if self.actions_pushed:
-                self.pushAction(self.endMarkFunction, desc)
-            rv = desc
-        else:
-            # If there is nothing to undo/redo, return empty string
-            rv = ''
+        # If any actions were pushed during the undo/redo,
+        # We push a new endMarkFunction to mark the end of the group
+        # and return the description
+        # Note: if no actions were pushed, this means we are 
+        # undoing a non-redoable action, or redoing a non-undoable action.
+        # This is probably an error, but at least we don't add a null action group.
+        if self.actions_pushed:
+            self.pushAction(self.endMarkFunction, desc)
         # Put the mode back to DOING
         self.mode = _UndoRedoManager.Mode.DOING
-        return rv
+        # Return the description of the undone/redone action group
+        return desc
 
     def dumpStacks(self) -> None:
         # This is just for debugging
@@ -174,6 +166,24 @@ class _UndoRedoManager:
         print("Redo Stack:")
         for action in self.redo_stack:
             action.dump()
+
+    def enterContext(self, uctx: UndoContext) -> UndoContext:
+        if self.insideContext:
+            raise RuntimeError("Nested UndoContext is not supported")
+        self.insideContext = True
+        return uctx
+    
+    def exitContext(self, uctx: UndoContext, exc_type, exc_value, traceback) -> None:
+        if exc_type is None:
+            self.pushEndMark(uctx.desc)
+        else:
+            pass # TBD - rollback?
+        self.insideContext = False
+
+    def recordAction(self, uctx: UndoContext, function: Callable, *args, **kwargs) -> None:
+        if self.mode == _UndoRedoManager.Mode.DOING and not self.insideContext:
+            raise RuntimeError("Cannot use UndoContext outside of with block")
+        self.pushAction(function, *args, **kwargs)
 
 # One and only one UndoRedoManager
 _urm = _UndoRedoManager()
