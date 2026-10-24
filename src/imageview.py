@@ -88,10 +88,10 @@ class ImageView(QGraphicsView):
 
     # Atomic Action
     def deleteSelection(self) -> None:
+        selectedItems = self._scene.selectedItems().copy()
+        if len(selectedItems) == 0:
+            return
         with undoContext("Delete Selection") as uctx:
-            selectedItems = self._scene.selectedItems().copy()
-            if len(selectedItems) == 0:
-                return
             for item in selectedItems:
                 mid = cast(Marker, item).mid
                 self.deleteMarker(uctx, mid)

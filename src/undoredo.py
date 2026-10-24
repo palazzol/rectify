@@ -174,11 +174,14 @@ class _UndoRedoManager:
         return uctx
     
     def exitContext(self, uctx: UndoContext, exc_type, exc_value, traceback) -> None:
-        if exc_type is None:
-            self.pushEndMark(uctx.desc)
-        else:
-            pass # TBD - rollback?
-        self.insideContext = False
+        try:
+            if exc_type is None:
+                self.pushEndMark(uctx.desc)
+            else:
+                pass # TBD - rollback?
+        finally:
+            # Always leave the context, even if pushEndMark raises
+            self.insideContext = False
 
     def recordAction(self, uctx: UndoContext, function: Callable, *args, **kwargs) -> None:
         if self.mode == _UndoRedoManager.Mode.DOING and not self.insideContext:
