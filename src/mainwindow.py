@@ -2,11 +2,14 @@
 # Posted by ekhumoro, modified by community. See post 'Timeline' for change history
 # Retrieved 2025-11-09, License - CC BY-SA 4.0
 
+import os
+
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtGui import QAction
 
 from imageview import ImageView
-from undoredo import undo, redo
+from project import ProjectFile, PROJECT_EXTENSION
+from undoredo import undo, redo, clearHistory
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
@@ -45,6 +48,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._createMenuBar()
 
         self._path: str | None = None
+        self._imageName = ''
+        self._imageData = b''
+        self._projectPath: str | None = None
 
     def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.key() == QtCore.Qt.Key.Key_M and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
@@ -72,11 +78,29 @@ class MainWindow(QtWidgets.QMainWindow):
         #new_action.triggered.connect(self._new_file)
         #file_menu.addAction(new_action)
 
-        open_action = QAction("&Open...", self)
+        open_action = QAction("&Open Image...", self)
         open_action.setShortcut("Ctrl+O")
-        open_action.setStatusTip("Open an existing document")
+        open_action.setStatusTip("Start a new project from an image")
         open_action.triggered.connect(self.handleOpen)
         file_menu.addAction(open_action)
+
+        open_project_action = QAction("Open &Project...", self)
+        open_project_action.setShortcut("Ctrl+P")
+        open_project_action.setStatusTip("Open an existing project")
+        open_project_action.triggered.connect(self.handleOpenProject)
+        file_menu.addAction(open_project_action)
+
+        save_action = QAction("&Save Project", self)
+        save_action.setShortcut("Ctrl+S")
+        save_action.setStatusTip("Save the current project")
+        save_action.triggered.connect(self.handleSaveProject)
+        file_menu.addAction(save_action)
+
+        save_as_action = QAction("Save Project &As...", self)
+        save_as_action.setShortcut("Ctrl+Shift+S")
+        save_as_action.setStatusTip("Save the current project under a new name")
+        save_as_action.triggered.connect(self.handleSaveProjectAs)
+        file_menu.addAction(save_as_action)
 
         file_menu.addSeparator()
 
@@ -151,11 +175,103 @@ class MainWindow(QtWidgets.QMainWindow):
             self, 'Open Image', start)[0]:
             #self.labelCoords.clear()
             self.statusbar.clearMessage()
-            if not (pixmap := QtGui.QPixmap(path)).isNull():
+            # Keep the original file contents, as they get saved in the project
+            try:
+                with open(path, 'rb') as f:
+                    data = f.read()
+            except OSError:
+                data = b''
+            if (pixmap := QtGui.QPixmap()).loadFromData(data):
+                # A new image starts a new, unsaved project
+                self.viewer.clearMarkers()
+                clearHistory()
                 self.viewer.setPhoto(pixmap)
                 self._path = path
+                self._imageName = os.path.basename(path)
+                self._imageData = data
+                self._projectPath = None
+                self.updateTitle()
             else:
                 QtWidgets.QMessageBox.warning(self, 'Error',
                     f'<br>Could not load image file:<br>'
                     f'<br><b>{path}</b><br>'
                     )
+
+    def projectDialogStart(self) -> str:
+        if self._projectPath is not None:
+            return self._projectPath
+        if self._path is not None:
+            return os.path.splitext(self._path)[0] + PROJECT_EXTENSION
+        return QtCore.QStandardPaths.standardLocations(
+            QtCore.QStandardPaths.StandardLocation.DocumentsLocation)[0]
+
+    def handleOpenProject(self) -> None:
+        path = QtWidgets.QFileDialog.getOpenFileName(
+            self, 'Open Project', self.projectDialogStart(),
+            f'Rectify Project (*{PROJECT_EXTENSION});;All Files (*)')[0]
+        if not path:
+            return
+        try:
+            project = ProjectFile.load(path)
+            pixmap = project.pixmap()
+        except (OSError, ValueError) as e:
+            QtWidgets.QMessageBox.warning(self, 'Error',
+                f'<br>Could not load project file:<br>'
+                f'<br><b>{path}</b><br>'
+                f'<br>{e}<br>'
+                )
+            return
+        self.viewer.clearMarkers()
+        clearHistory()
+        self.viewer.setPhoto(pixmap)
+        self.viewer.setMarkers(project.markers)
+        self._imageName = project.image_name
+        self._imageData = project.image_data
+        self._projectPath = path
+        self.updateTitle()
+        self.statusbar.showMessage(f'Opened {os.path.basename(path)}')
+
+    def handleSaveProject(self) -> None:
+        if self._projectPath is None:
+            self.handleSaveProjectAs()
+        else:
+            self.saveProject(self._projectPath)
+
+    def handleSaveProjectAs(self) -> None:
+        if not self.viewer.hasPhoto():
+            self.statusbar.showMessage('Nothing to Save!')
+            return
+        path = QtWidgets.QFileDialog.getSaveFileName(
+            self, 'Save Project', self.projectDialogStart(),
+            f'Rectify Project (*{PROJECT_EXTENSION})')[0]
+        if not path:
+            return
+        if not path.lower().endswith(PROJECT_EXTENSION):
+            path += PROJECT_EXTENSION
+        self.saveProject(path)
+
+    def saveProject(self, path: str) -> None:
+        if not self.viewer.hasPhoto():
+            self.statusbar.showMessage('Nothing to Save!')
+            return
+        project = ProjectFile(self._imageName, self._imageData, self.viewer.markerData())
+        try:
+            project.save(path)
+        except OSError as e:
+            QtWidgets.QMessageBox.warning(self, 'Error',
+                f'<br>Could not save project file:<br>'
+                f'<br><b>{path}</b><br>'
+                f'<br>{e}<br>'
+                )
+            return
+        self._projectPath = path
+        self.updateTitle()
+        self.statusbar.showMessage(f'Saved {os.path.basename(path)}')
+
+    def updateTitle(self) -> None:
+        if self._projectPath is not None:
+            self.setWindowTitle(f'Rectify - {os.path.basename(self._projectPath)}')
+        elif self._imageName:
+            self.setWindowTitle(f'Rectify - {self._imageName} (unsaved)')
+        else:
+            self.setWindowTitle('Rectify')

@@ -9,6 +9,7 @@ from typing import cast
 from undoredo import undoContext, UndoContext
 from marker import Marker
 from constraint import ConstraintDialog
+from project import MarkerData
 
 SCALE_FACTOR = 1.25
 
@@ -71,12 +72,31 @@ class ImageView(QGraphicsView):
             self.statusbar.showMessage("Create Marker")
 
     def createMarker(self, uctx: UndoContext, point: QtCore.QPointF, mid: int | None = None) -> None:
+        marker = self._addMarker(point, mid)
+        #print(f'Created marker id={marker.mid}')
+        uctx.recordAction(self.deleteMarker, uctx, marker.mid)
+
+    def _addMarker(self, point: QtCore.QPointF, mid: int | None = None) -> Marker:
         marker = Marker(self,point,mid)
         self._scene.addItem(marker)
         self.markerlist.append(marker)
         marker.update()
-        #print(f'Created marker id={marker.mid}')
-        uctx.recordAction(self.deleteMarker, uctx, marker.mid)
+        return marker
+
+    # Not undoable - used when loading a project or a new image
+    def clearMarkers(self) -> None:
+        for marker in self.markerlist:
+            self._scene.removeItem(marker)
+        self.markerlist.clear()
+
+    # Not undoable - used when loading a project
+    def setMarkers(self, markers: list[MarkerData]) -> None:
+        self.clearMarkers()
+        for m in markers:
+            self._addMarker(QtCore.QPointF(m.x, m.y), m.mid)
+
+    def markerData(self) -> list[MarkerData]:
+        return [MarkerData(m.mid, m.pos().x(), m.pos().y()) for m in self.markerlist]
 
     def deleteMarker(self, uctx: UndoContext, mid: int ) -> None:
         marker = self.getItemById(mid)

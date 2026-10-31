@@ -30,6 +30,10 @@ def undo() -> str:
 def redo() -> str:
     return _urm.undoOrRedo('Redo', _UndoRedoManager.Mode.REDOING, _urm.redo_stack)
 
+# Discard all undo/redo history, e.g. when a new project is loaded
+def clearHistory() -> None:
+    _urm.reset()
+
 # Insures that actions done within the context are recorded together as a unit
 def undoContext(desc: str) -> UndoContext:
     return UndoContext(desc)

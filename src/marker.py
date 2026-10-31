@@ -89,6 +89,8 @@ class Marker(QGraphicsPixmapItem):
             Marker.next_marker_id += 1
         else:
             self.mid = mid
+            # Keep future ids unique, e.g. after loading a project
+            Marker.next_marker_id = max(Marker.next_marker_id, mid + 1)
         if not Marker.pixmaps_initialized:
            self._initPixmaps()
         self.setPos(pos)
