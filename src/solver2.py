@@ -168,13 +168,13 @@ class NLLSSolver(QtCore.QObject):
         print('NL Least Squares Solution:')
         print(f'x=\n{x}')
 
-        # Compute transformation matrix, for printing
+        # Compute transformation matrix
         T = zeros((3,3))
-        T[0,0] = x[0]+1.
+        T[0,0] = x[0]
         T[0,1] = x[1]
         T[0,2] = x[2]
         T[1,0] = -x[1]
-        T[1,1] = x[0]+1.
+        T[1,1] = x[0]
         T[1,2] = x[3]
         T[2,0] = x[4]
         T[2,1] = x[5]

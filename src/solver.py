@@ -138,7 +138,7 @@ class SVDSolver(QtCore.QObject):
             print('Minimum Norm Solution:')
         #print(f'x=\n{x}')
 
-        # Compute transformation matrix, for printing
+        # Compute transformation matrix
         T = zeros((3,3))
         T[0,0] = x[0]+1.
         T[0,1] = x[1]
