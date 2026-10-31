@@ -1,6 +1,6 @@
 from numpy import array, diag, zeros, arctan2, pi, sqrt, finfo, count_nonzero, delete, vstack
 from numpy.linalg import svd, norm
-from pynnex import with_emitters, emitter, listener
+from PySide6 import QtCore
 
 class PointConstraint:
     def __init__(self, image_x, image_y, world_x, world_y, weight):
@@ -10,18 +10,13 @@ class PointConstraint:
         self.world_y = world_y
         self.weight  = weight
 
-@with_emitters
-class SVDSolver:
+class SVDSolver(QtCore.QObject):
+    emitcreateconstraint = QtCore.Signal(object)
+    emitdestroyconstraint = QtCore.Signal(object)
+
     def __init__(self) -> None:
-        self.constraints = []
-
-    @emitter
-    def emitcreateconstraint(self):
-        pass
-
-    @emitter
-    def emitdestroyconstraint(self):
-        pass
+        super().__init__()
+        self.constraints: list[PointConstraint] = []
 
     def CreateConstraint(self, image_x, image_y, world_x, world_y, weight=1.0, emit=True):
         c = PointConstraint(image_x, image_y, world_x, world_y, weight)

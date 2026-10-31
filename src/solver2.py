@@ -1,7 +1,7 @@
 from numpy import array, diag, zeros, arctan2, pi, sqrt, finfo, count_nonzero, delete, vstack
 from numpy.linalg import svd, norm
 from scipy.optimize import least_squares
-from pynnex import with_emitters, emitter, listener
+from PySide6 import QtCore
 
 class DeltaXConstraint:
     def __init__(self, image_x1, image_y1, image_x2, image_y2, world_dx, weight):
@@ -21,19 +21,14 @@ class DeltaYConstraint:
         self.world_dy = world_dy
         self.weight  = weight
 
-@with_emitters
-class NLLSSolver:
-    def __init__(self):
-        self.dxconstraints = []
-        self.dyconstraints = []
+class NLLSSolver(QtCore.QObject):
+    emitcreateconstraint = QtCore.Signal(object)
+    emitdestroyconstraint = QtCore.Signal(object)
 
-    @emitter
-    def emitcreateconstraint(self):
-        pass
-
-    @emitter
-    def emitdestroyconstraint(self):
-        pass
+    def __init__(self) -> None:
+        super().__init__()
+        self.dxconstraints: list[DeltaXConstraint] = []
+        self.dyconstraints: list[DeltaYConstraint] = []
 
     def CreateDXConstraint(self, image_x1, image_y1, image_x2, image_y2, world_dx, weight=1.0, emit=True):
         c = DeltaXConstraint(image_x1, image_y1, image_x2, image_y2, world_dx, weight)
