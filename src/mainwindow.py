@@ -60,6 +60,10 @@ class MainWindow(QtWidgets.QMainWindow):
         elif event.key() == QtCore.Qt.Key.Key_C and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             if len(self.viewer._scene.selectedItems()) > 1:
                 self.viewer.createConstraint()
+        elif (event.key() == QtCore.Qt.Key.Key_T and not event.isAutoRepeat() and
+              event.modifiers() in (QtCore.Qt.KeyboardModifier.NoModifier, QtCore.Qt.KeyboardModifier.ShiftModifier)):
+            # t or T over a marker edits its target coordinates
+            self.viewer.editTargetsAtCursor()
         elif ((event.key() == QtCore.Qt.Key.Key_Backspace) or (event.key() == QtCore.Qt.Key.Key_Delete )) and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             self.viewer.deleteSelection()
         else:

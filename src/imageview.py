@@ -9,6 +9,7 @@ from typing import cast
 from undoredo import undoContext, UndoContext
 from marker import Marker
 from constraint import ConstraintDialog
+from targetdialog import TargetDialog
 from project import MarkerData
 
 SCALE_FACTOR = 1.25
@@ -255,6 +256,37 @@ class ImageView(QGraphicsView):
         uctx.recordAction(self.moveMarker, uctx, mid, old_pos)
         item.setPos(pos)
     
+    def setMarkerTargets(self, uctx: UndoContext, mid: int,
+                         target_x: float | None, target_y: float | None) -> None:
+        marker = self.getItemById(mid)
+        uctx.recordAction(self.setMarkerTargets, uctx, mid, marker.targetX(), marker.targetY())
+        marker.setTargetX(target_x)
+        marker.setTargetY(target_y)
+
+    def markerAtCursor(self) -> Marker | None:
+        viewpos = self.mapFromGlobal(QtGui.QCursor.pos())
+        for item in self.items(viewpos):
+            if isinstance(item, Marker):
+                return item
+        return None
+
+    # Atomic Action
+    def editTargetsAtCursor(self) -> None:
+        marker = self.markerAtCursor()
+        if marker is None:
+            return
+        mid = marker.mid
+        old = (marker.targetX(), marker.targetY())
+        dialog = TargetDialog(self, mid, *old)
+        if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+            return
+        new = dialog.targets()
+        if new == old:
+            return
+        with undoContext("Set Marker Target") as uctx:
+            self.setMarkerTargets(uctx, mid, *new)
+        self.statusbar.showMessage("Set Marker Target")
+
     def createConstraint(self) -> None:
         dialog = ConstraintDialog(self)
         dialog.exec()
