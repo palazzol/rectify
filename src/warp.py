@@ -15,6 +15,8 @@
 #
 
 import math
+import os
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from scipy import ndimage
@@ -25,7 +27,9 @@ OUTPUT_DPI = 300.0
 BORDER_GRAY = 128           # fill for output pixels outside the image
 MAX_OUTPUT_SIDE = 20000     # refuse absurd sizes from a bad solution
 MAX_SUPERSAMPLE = 8
-_CHUNK_POINTS = 1 << 21     # sample points per band, to bound memory
+_CHUNK_POINTS = 1 << 18     # sample points per band: bounds memory, and gives
+                            # enough bands to keep every core busy
+_WORKERS = os.cpu_count() or 1
 
 def _toArray(image: QtGui.QImage) -> np.ndarray:
     img = image.convertToFormat(QtGui.QImage.Format.Format_RGB888)
@@ -87,32 +91,41 @@ def warpImage(image: QtGui.QImage, T: np.ndarray, dpi: float = OUTPUT_DPI,
     k = _supersample(w, h, M, out_w, out_h)
     Minv = np.linalg.inv(M)
 
-    # Cubic spline coefficients, computed once per channel
-    coeffs = [ndimage.spline_filter(src[:, :, c].astype(np.float32), order=3,
-                                    mode='mirror', output=np.float32) for c in range(3)]
+    # Cubic spline coefficients, computed once per channel. scipy releases
+    # the GIL in its C code, so the channels and bands below run in parallel.
+    with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+        coeffs = list(pool.map(lambda c: ndimage.spline_filter(
+            src[:, :, c].astype(np.float32), order=3, mode='mirror', output=np.float32), range(3)))
 
-    out = np.empty((out_h, out_w, 3), dtype=np.uint8)
-    ss_w = out_w * k
-    band = max(1, _CHUNK_POINTS // (ss_w * k))   # output rows per band
-    us = (np.arange(ss_w) + 0.5) / k              # subpixel centers, output pixels
-    for row0 in range(0, out_h, band):
-        rows = min(band, out_h - row0)
-        vs = row0 + (np.arange(rows * k) + 0.5) / k
-        U, V = np.meshgrid(us, vs)
-        sx = Minv[0, 0] * U + Minv[0, 1] * V + Minv[0, 2]
-        sy = Minv[1, 0] * U + Minv[1, 1] * V + Minv[1, 2]
-        sw = Minv[2, 0] * U + Minv[2, 1] * V + Minv[2, 2]
-        # Scene coordinates to array indices (pixel centers at integers)
-        coords = np.array([sy / sw - 0.5, sx / sw - 0.5])
-        # The image covers indices [-0.5, n-0.5]; everything else is border.
-        # Sampling extends the edges, so the outer half pixel is kept.
-        outside = ((coords[0] < -0.5) | (coords[0] > h - 0.5) |
-                   (coords[1] < -0.5) | (coords[1] > w - 0.5))
-        for c in range(3):
-            samples = ndimage.map_coordinates(coeffs[c], coords, order=3, mode='mirror',
-                                              prefilter=False)
-            samples[outside] = BORDER_GRAY
-            # Average each k x k block into one output pixel
-            samples = samples.reshape(rows, k, out_w, k).mean(axis=(1, 3))
-            out[row0:row0 + rows, :, c] = np.clip(np.rint(samples), 0, 255)
+        out = np.empty((out_h, out_w, 3), dtype=np.uint8)
+        ss_w = out_w * k
+        band = max(1, _CHUNK_POINTS // (ss_w * k))   # output rows per band
+        us = (np.arange(ss_w) + 0.5) / k              # subpixel centers, output pixels
+
+        def warpBand(row0: int) -> None:
+            rows = min(band, out_h - row0)
+            vs = row0 + (np.arange(rows * k) + 0.5) / k
+            U, V = np.meshgrid(us, vs)
+            sx = Minv[0, 0] * U + Minv[0, 1] * V + Minv[0, 2]
+            sy = Minv[1, 0] * U + Minv[1, 1] * V + Minv[1, 2]
+            sw = Minv[2, 0] * U + Minv[2, 1] * V + Minv[2, 2]
+            # Scene coordinates to array indices (pixel centers at integers)
+            rr = sy / sw - 0.5
+            cc = sx / sw - 0.5
+            # The image covers indices [-0.5, n-0.5]; everything else is border.
+            # Sampling extends the edges, so the outer half pixel is kept.
+            inside = (rr >= -0.5) & (rr <= h - 0.5) & (cc >= -0.5) & (cc <= w - 0.5)
+            # Only interpolate points inside the image
+            coords = np.array([rr[inside], cc[inside]])
+            samples = np.full(rr.shape, BORDER_GRAY, dtype=np.float64)
+            for c in range(3):
+                if coords.shape[1]:
+                    samples[inside] = ndimage.map_coordinates(coeffs[c], coords, order=3,
+                                                              mode='mirror', prefilter=False)
+                # Average each k x k block into one output pixel
+                block = samples.reshape(rows, k, out_w, k).mean(axis=(1, 3))
+                out[row0:row0 + rows, :, c] = np.clip(np.rint(block), 0, 255)
+
+        # Bands write disjoint rows of out; list() re-raises any worker error
+        list(pool.map(warpBand, range(0, out_h, band)))
     return _toImage(out, dpi)
