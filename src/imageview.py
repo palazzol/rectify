@@ -71,13 +71,15 @@ class ImageView(QGraphicsView):
             self.createMarker(uctx, point)
             self.statusbar.showMessage("Create Marker")
 
-    def createMarker(self, uctx: UndoContext, point: QtCore.QPointF, mid: int | None = None) -> None:
-        marker = self._addMarker(point, mid)
+    def createMarker(self, uctx: UndoContext, point: QtCore.QPointF, mid: int | None = None,
+                     target_x: float | None = None, target_y: float | None = None) -> None:
+        marker = self._addMarker(point, mid, target_x, target_y)
         #print(f'Created marker id={marker.mid}')
         uctx.recordAction(self.deleteMarker, uctx, marker.mid)
 
-    def _addMarker(self, point: QtCore.QPointF, mid: int | None = None) -> Marker:
-        marker = Marker(self,point,mid)
+    def _addMarker(self, point: QtCore.QPointF, mid: int | None = None,
+                   target_x: float | None = None, target_y: float | None = None) -> Marker:
+        marker = Marker(self, point, mid, target_x, target_y)
         self._scene.addItem(marker)
         self.markerlist.append(marker)
         marker.update()
@@ -93,18 +95,20 @@ class ImageView(QGraphicsView):
     def setMarkers(self, markers: list[MarkerData]) -> None:
         self.clearMarkers()
         for m in markers:
-            self._addMarker(QtCore.QPointF(m.x, m.y), m.mid)
+            self._addMarker(QtCore.QPointF(m.x, m.y), m.mid, m.target_x, m.target_y)
 
     def markerData(self) -> list[MarkerData]:
-        return [MarkerData(m.mid, m.pos().x(), m.pos().y()) for m in self.markerlist]
+        return [MarkerData(m.mid, m.pos().x(), m.pos().y(), m.targetX(), m.targetY())
+                for m in self.markerlist]
 
     def deleteMarker(self, uctx: UndoContext, mid: int ) -> None:
         marker = self.getItemById(mid)
         pos,mid = marker.pos(),marker.mid
+        target_x,target_y = marker.targetX(),marker.targetY()
         self.markerlist.remove(marker)
         self._scene.removeItem(marker)
         #print(f'Deleted marker id={id}')
-        uctx.recordAction(self.createMarker, uctx, pos, mid)
+        uctx.recordAction(self.createMarker, uctx, pos, mid, target_x, target_y)
 
     # Atomic Action
     def deleteSelection(self) -> None:

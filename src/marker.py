@@ -4,10 +4,20 @@ from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 from configparser import ConfigParser
 from undoredo import undoContext
 from pathlib import Path
+import math
 
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from imageview import ImageView
+
+def _checkTarget(value: float | None) -> float | None:
+    # A target coordinate is either unset (None) or a finite float
+    if value is None:
+        return None
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError(f'Target coordinate must be finite, got {value}')
+    return value
 
 # Use a scaled pixmap for marker graphics
 class Marker(QGraphicsPixmapItem):
@@ -81,8 +91,13 @@ class Marker(QGraphicsPixmapItem):
         Marker.r = r
         Marker.pixmaps_initialized = True
 
-    def __init__(self, view: ImageView, pos: QtCore.QPointF, mid:int | None = None) -> None:
+    def __init__(self, view: ImageView, pos: QtCore.QPointF, mid:int | None = None,
+                 target_x: float | None = None, target_y: float | None = None) -> None:
         super().__init__()
+        # Desired coordinates of this point after warping, or None if unset.
+        # Stored here for now; they may later be computed instead.
+        self._target_x = _checkTarget(target_x)
+        self._target_y = _checkTarget(target_y)
         # Set the id if not given
         if mid is None:
             self.mid = Marker.next_marker_id
@@ -102,6 +117,20 @@ class Marker(QGraphicsPixmapItem):
         self.setAcceptHoverEvents(True)
         self.setPixmap(Marker.unselected_pixmap)
         self.view = view
+
+    def targetX(self) -> float | None:
+        return self._target_x
+
+    def targetY(self) -> float | None:
+        return self._target_y
+
+    # Not undoable
+    def setTargetX(self, value: float | None) -> None:
+        self._target_x = _checkTarget(value)
+
+    # Not undoable
+    def setTargetY(self, value: float | None) -> None:
+        self._target_y = _checkTarget(value)
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
         # if selection state changed, swap the pixmap

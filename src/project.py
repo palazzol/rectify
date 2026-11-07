@@ -10,14 +10,19 @@
 # Example project.json:
 #
 #   {
-#     "version": 1,
+#     "version": 2,
 #     "image_name": "board.jpg",
 #     "image": "image.jpeg",
-#     "markers": [ {"id": 0, "x": 123.5, "y": 456.25}, ... ]
+#     "markers": [ {"id": 0, "x": 123.5, "y": 456.25,
+#                   "target_x": 0.0, "target_y": null}, ... ]
 #   }
+#
+# target_x/target_y are the marker's desired coordinates after warping,
+# or null when unset. Version 1 files have no targets; they still load.
 #
 
 import json
+import math
 import os
 import zipfile
 from dataclasses import dataclass, field
@@ -25,7 +30,8 @@ from dataclasses import dataclass, field
 from PySide6 import QtCore, QtGui
 
 PROJECT_EXTENSION = '.rct'
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
+_READABLE_VERSIONS = (1, 2)
 
 _JSON_MEMBER = 'project.json'
 _IMAGE_MEMBER = 'image'
@@ -35,6 +41,16 @@ class MarkerData:
     mid: int
     x: float
     y: float
+    target_x: float | None = None
+    target_y: float | None = None
+
+def _optFloat(value: object) -> float | None:
+    if value is None:
+        return None
+    result = float(value)  # type: ignore[arg-type]
+    if not math.isfinite(result):
+        raise ValueError(f'Target coordinate must be finite, got {result}')
+    return result
 
 @dataclass
 class ProjectFile:
@@ -63,7 +79,9 @@ class ProjectFile:
             'version': FORMAT_VERSION,
             'image_name': self.image_name,
             'image': image_member,
-            'markers': [{'id': m.mid, 'x': m.x, 'y': m.y} for m in self.markers],
+            'markers': [{'id': m.mid, 'x': m.x, 'y': m.y,
+                         'target_x': m.target_x, 'target_y': m.target_y}
+                        for m in self.markers],
         }
 
         # Write to a temporary file first, so a failed save
@@ -87,10 +105,11 @@ class ProjectFile:
             with zipfile.ZipFile(path, 'r') as zf:
                 doc = json.loads(zf.read(_JSON_MEMBER))
                 version = doc.get('version')
-                if version != FORMAT_VERSION:
+                if version not in _READABLE_VERSIONS:
                     raise ValueError(f'Unsupported project version: {version}')
                 image_data = zf.read(doc['image'])
-                markers = [MarkerData(int(m['id']), float(m['x']), float(m['y']))
+                markers = [MarkerData(int(m['id']), float(m['x']), float(m['y']),
+                                      _optFloat(m.get('target_x')), _optFloat(m.get('target_y')))
                            for m in doc.get('markers', [])]
                 image_name = str(doc.get('image_name', ''))
         except (zipfile.BadZipFile, KeyError, TypeError, json.JSONDecodeError) as e:
