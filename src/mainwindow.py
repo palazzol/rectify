@@ -64,6 +64,10 @@ class MainWindow(QtWidgets.QMainWindow):
               event.modifiers() in (QtCore.Qt.KeyboardModifier.NoModifier, QtCore.Qt.KeyboardModifier.ShiftModifier)):
             # t or T over a marker edits its target coordinates
             self.viewer.editTargetsAtCursor()
+        elif (event.key() == QtCore.Qt.Key.Key_S and not event.isAutoRepeat() and
+              event.modifiers() in (QtCore.Qt.KeyboardModifier.NoModifier, QtCore.Qt.KeyboardModifier.ShiftModifier)):
+            # s or S solves for the transformation matrix
+            self.viewer.solveTransform()
         elif ((event.key() == QtCore.Qt.Key.Key_Backspace) or (event.key() == QtCore.Qt.Key.Key_Delete )) and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             self.viewer.deleteSelection()
         else:

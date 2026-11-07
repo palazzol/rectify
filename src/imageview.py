@@ -11,6 +11,7 @@ from marker import Marker
 from constraint import ConstraintDialog
 from targetdialog import TargetDialog
 from project import MarkerData
+from solver3 import NLLSSolver
 
 SCALE_FACTOR = 1.25
 
@@ -286,6 +287,23 @@ class ImageView(QGraphicsView):
         with undoContext("Set Marker Target") as uctx:
             self.setMarkerTargets(uctx, mid, *new)
         self.statusbar.showMessage("Set Marker Target")
+
+    # Solve for the transformation matrix, using every marker's
+    # target X and Y (where set) as constraints. The solver prints the result.
+    def solveTransform(self) -> None:
+        solver = NLLSSolver()
+        for marker in self.markerlist:
+            pos = marker.pos()
+            if (target_x := marker.targetX()) is not None:
+                solver.CreateXConstraint(pos.x(), pos.y(), target_x)
+            if (target_y := marker.targetY()) is not None:
+                solver.CreateYConstraint(pos.x(), pos.y(), target_y)
+        count = len(solver.xconstraints) + len(solver.yconstraints)
+        if count == 0:
+            self.statusbar.showMessage("Solve: no marker targets set")
+            return
+        solver.ComputeSolution()
+        self.statusbar.showMessage(f"Solved with {count} constraints")
 
     def createConstraint(self) -> None:
         dialog = ConstraintDialog(self)
