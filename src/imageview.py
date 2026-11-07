@@ -6,6 +6,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 from typing import cast
 
+import numpy as np
+
 from undoredo import undoContext, UndoContext
 from marker import Marker
 from constraint import ConstraintDialog
@@ -288,9 +290,13 @@ class ImageView(QGraphicsView):
             self.setMarkerTargets(uctx, mid, *new)
         self.statusbar.showMessage("Set Marker Target")
 
+    # Minimum constraints for a unique solution: the homography has 8 parameters
+    MIN_SOLVE_CONSTRAINTS = 8
+
     # Solve for the transformation matrix, using every marker's
     # target X and Y (where set) as constraints. The solver prints the result.
-    def solveTransform(self) -> None:
+    # Returns the matrix, or None (with a status message) if it can't be computed.
+    def solveTransform(self) -> np.ndarray | None:
         solver = NLLSSolver()
         for marker in self.markerlist:
             pos = marker.pos()
@@ -299,11 +305,19 @@ class ImageView(QGraphicsView):
             if (target_y := marker.targetY()) is not None:
                 solver.CreateYConstraint(pos.x(), pos.y(), target_y)
         count = len(solver.xconstraints) + len(solver.yconstraints)
-        if count == 0:
-            self.statusbar.showMessage("Solve: no marker targets set")
-            return
-        solver.ComputeSolution()
+        if count < self.MIN_SOLVE_CONSTRAINTS:
+            self.statusbar.showMessage(
+                f"Solve: {count} target values set, at least {self.MIN_SOLVE_CONSTRAINTS} are needed")
+            return None
+        T = solver.ComputeSolution()
+        if not np.all(np.isfinite(T)):
+            self.statusbar.showMessage("Solve: no valid solution")
+            return None
         self.statusbar.showMessage(f"Solved with {count} constraints")
+        return T
+
+    def photoImage(self) -> QtGui.QImage:
+        return self._photo.pixmap().toImage()
 
     def createConstraint(self) -> None:
         dialog = ConstraintDialog(self)

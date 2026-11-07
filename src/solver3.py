@@ -132,11 +132,14 @@ class NLLSSolver(QtCore.QObject):
                     return x,r,1
     '''
 
+    # Full 8 parameter homography (projective transform):
+    #   X = (x0*ix + x1*iy + x2) / (1 + x6*ix + x7*iy)
+    #   Y = (x3*ix + x4*iy + x5) / (1 + x6*ix + x7*iy)
     def FunctionFx(self, image_x, image_y, x):
-        return ( x[0]*image_x + x[1]*image_y + x[2] )/( 1 + x[4]*image_x + x[5]*image_y)
+        return ( x[0]*image_x + x[1]*image_y + x[2] )/( 1 + x[6]*image_x + x[7]*image_y)
 
     def FunctionFy(self, image_x, image_y, x):
-        return (-x[1]*image_x + x[0]*image_y + x[3] )/( 1 + x[4]*image_x + x[5]*image_y)
+        return ( x[3]*image_x + x[4]*image_y + x[5] )/( 1 + x[6]*image_x + x[7]*image_y)
     
     def FunctionG(self, x):
         r = zeros((self.m,))
@@ -152,9 +155,9 @@ class NLLSSolver(QtCore.QObject):
     def ComputeSolution(self):
         # m = number of rows, number of constraints
         self.m = len(self.xconstraints) + len(self.yconstraints)
-        # n = number of params, 2+2+2 = 6
-        self.n = 6
-        x0 = [1, 0, 0, 0, 0, 0]
+        # n = number of params of the homography = 8
+        self.n = 8
+        x0 = [1, 0, 0, 0, 1, 0, 0, 0]
         res = least_squares(self.FunctionG, x0)
         
         x = res.x
@@ -170,11 +173,11 @@ class NLLSSolver(QtCore.QObject):
         T[0,0] = x[0]
         T[0,1] = x[1]
         T[0,2] = x[2]
-        T[1,0] = -x[1]
-        T[1,1] = x[0]
-        T[1,2] = x[3]
-        T[2,0] = x[4]
-        T[2,1] = x[5]
+        T[1,0] = x[3]
+        T[1,1] = x[4]
+        T[1,2] = x[5]
+        T[2,0] = x[6]
+        T[2,1] = x[7]
         T[2,2] = 1.
         print(f'T=\n{T}')
         return T

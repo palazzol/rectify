@@ -10,6 +10,7 @@ from PySide6.QtGui import QAction
 from imageview import ImageView
 from project import ProjectFile, PROJECT_EXTENSION
 from undoredo import undo, redo, clearHistory
+from warp import warpImage, OUTPUT_DPI
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
@@ -66,8 +67,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.viewer.editTargetsAtCursor()
         elif (event.key() == QtCore.Qt.Key.Key_S and not event.isAutoRepeat() and
               event.modifiers() in (QtCore.Qt.KeyboardModifier.NoModifier, QtCore.Qt.KeyboardModifier.ShiftModifier)):
-            # s or S solves for the transformation matrix
-            self.viewer.solveTransform()
+            # s or S solves for the transformation matrix and saves the warped image
+            self.solveAndWarp()
         elif ((event.key() == QtCore.Qt.Key.Key_Backspace) or (event.key() == QtCore.Qt.Key.Key_Delete )) and event.modifiers() == QtCore.Qt.KeyboardModifier.NoModifier:
             self.viewer.deleteSelection()
         else:
@@ -275,6 +276,45 @@ class MainWindow(QtWidgets.QMainWindow):
         self._projectPath = path
         self.updateTitle()
         self.statusbar.showMessage(f'Saved {os.path.basename(path)}')
+
+    def solveAndWarp(self) -> None:
+        if not self.viewer.hasPhoto():
+            return
+        T = self.viewer.solveTransform()
+        if T is None:
+            return
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.CursorShape.WaitCursor)
+        try:
+            image = warpImage(self.viewer.photoImage(), T)
+        except ValueError as e:
+            QtWidgets.QApplication.restoreOverrideCursor()
+            QtWidgets.QMessageBox.warning(self, 'Error',
+                f'<br>Could not warp the image:<br><br>{e}<br>')
+            return
+        QtWidgets.QApplication.restoreOverrideCursor()
+        path = QtWidgets.QFileDialog.getSaveFileName(
+            self, f'Save Rectified Image ({image.width()} x {image.height()}, {OUTPUT_DPI:g} dpi)',
+            self.rectifiedDialogStart(), 'PNG Image (*.png);;TIFF Image (*.tif *.tiff);;All Files (*)')[0]
+        if not path:
+            return
+        if not os.path.splitext(path)[1]:
+            path += '.png'
+        if not image.save(path):
+            QtWidgets.QMessageBox.warning(self, 'Error',
+                f'<br>Could not save image file:<br><br><b>{path}</b><br>')
+            return
+        self.statusbar.showMessage(f'Saved {os.path.basename(path)} ({image.width()} x {image.height()})')
+
+    def rectifiedDialogStart(self) -> str:
+        if self._projectPath is not None:
+            base = os.path.splitext(self._projectPath)[0]
+        elif self._path is not None:
+            base = os.path.splitext(self._path)[0]
+        else:
+            base = os.path.join(QtCore.QStandardPaths.standardLocations(
+                QtCore.QStandardPaths.StandardLocation.PicturesLocation)[0],
+                os.path.splitext(self._imageName)[0] or 'image')
+        return base + '_rectified.png'
 
     def updateTitle(self) -> None:
         if self._projectPath is not None:
