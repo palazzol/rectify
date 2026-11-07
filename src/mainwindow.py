@@ -12,6 +12,13 @@ from project import ProjectFile, PROJECT_EXTENSION
 from undoredo import undo, redo, clearHistory
 from warp import warpImage, OUTPUT_DPI
 
+# Persistent user settings, e.g. the last project folder
+def _settings() -> QtCore.QSettings:
+    return QtCore.QSettings(QtCore.QSettings.Format.IniFormat, QtCore.QSettings.Scope.UserScope,
+                            'rectify', 'rectify')
+
+_LAST_PROJECT_DIR = 'paths/last_project_dir'
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -206,9 +213,21 @@ class MainWindow(QtWidgets.QMainWindow):
                     f'<br><b>{path}</b><br>'
                     )
 
+    def lastProjectDir(self) -> str | None:
+        last = _settings().value(_LAST_PROJECT_DIR)
+        return last if isinstance(last, str) and os.path.isdir(last) else None
+
+    def rememberProjectDir(self, path: str) -> None:
+        _settings().setValue(_LAST_PROJECT_DIR, os.path.dirname(os.path.abspath(path)))
+
     def projectDialogStart(self) -> str:
         if self._projectPath is not None:
             return self._projectPath
+        if (last := self.lastProjectDir()) is not None:
+            # The folder a project was last opened from or saved to
+            if self._imageName:
+                return os.path.join(last, os.path.splitext(self._imageName)[0] + PROJECT_EXTENSION)
+            return last
         if self._path is not None:
             return os.path.splitext(self._path)[0] + PROJECT_EXTENSION
         return QtCore.QStandardPaths.standardLocations(
@@ -237,6 +256,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._imageName = project.image_name
         self._imageData = project.image_data
         self._projectPath = path
+        self.rememberProjectDir(path)
         self.updateTitle()
         self.statusbar.showMessage(f'Opened {os.path.basename(path)}')
 
@@ -274,6 +294,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
             return
         self._projectPath = path
+        self.rememberProjectDir(path)
         self.updateTitle()
         self.statusbar.showMessage(f'Saved {os.path.basename(path)}')
 
