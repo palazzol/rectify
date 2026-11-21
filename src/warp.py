@@ -2,14 +2,14 @@
 #  Warp an image with a solved transformation matrix
 #
 # T maps image pixel coordinates to target coordinates (homogeneous, 3x3).
-# Target units are 0.1 inch by default, and the output is rendered at 72 dpi,
-# so one target unit is 7.2 output pixels.
+# Target units are 0.1 inch by default, and the output is rendered at 300 dpi,
+# so one target unit is 30 output pixels.
 #
 # Coordinates: marker positions are scene coordinates, where pixel (i, j)
 # covers [i, i+1) x [j, j+1), so its center is at (i+0.5, j+0.5).
 #
 # Sampling is bicubic (cubic B-spline). When the output has fewer pixels than
-# the source (the usual case for a high resolution photo at 72 dpi), each
+# the source, each
 # output pixel is supersampled on a k x k grid and averaged, so detail is
 # area-averaged instead of aliased.
 #
