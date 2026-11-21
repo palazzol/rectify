@@ -9,9 +9,18 @@
 # covers [i, i+1) x [j, j+1), so its center is at (i+0.5, j+0.5).
 #
 # Sampling is bicubic (cubic B-spline). When the output has fewer pixels than
-# the source, each
-# output pixel is supersampled on a k x k grid and averaged, so detail is
-# area-averaged instead of aliased.
+# the source, each output pixel is supersampled on a k x k grid and averaged,
+# so detail is area-averaged instead of aliased.
+#
+# Grid alignment: the output is padded on every edge so that each edge lies
+# on a grid line, i.e. at a whole number of target units. That lets the image
+# snap to the grid when placed as a reference image in KiCad. At 30 pixels
+# per unit, up to 29 pixels of padding are added to each edge. The size is
+# also made an even number of units, by adding one more unit on the right or
+# bottom when needed, so the image center lands on a grid line too (KiCad can
+# snap a reference image by its center). If the pixels
+# per unit is not a whole number, the size is rounded to whole pixels, so the
+# right and bottom edges can be off the grid by up to half a pixel.
 #
 
 import math
@@ -62,9 +71,20 @@ def outputGeometry(width: int, height: int, T: np.ndarray, dpi: float = OUTPUT_D
     if np.any(p[2] <= 0):
         raise ValueError('The transformation maps part of the image past the horizon')
     xs, ys = p[0] / p[2], p[1] / p[2]
-    x0, y0 = math.floor(xs.min()), math.floor(ys.min())
-    out_w = math.ceil(xs.max()) - x0
-    out_h = math.ceil(ys.max()) - y0
+    # Pad each edge out to the nearest grid line (a whole target unit) at or
+    # beyond the image's extents, so every edge snaps to the grid
+    x0 = math.floor(xs.min() / scale) * scale
+    y0 = math.floor(ys.min() / scale) * scale
+    x1 = math.ceil(xs.max() / scale) * scale
+    y1 = math.ceil(ys.max() / scale) * scale
+    # Make the size an even number of grid units, adding one unit on the
+    # right or bottom if needed, so the image center is on a grid line too
+    if round((x1 - x0) / scale) % 2:
+        x1 += scale
+    if round((y1 - y0) / scale) % 2:
+        y1 += scale
+    out_w = round(x1 - x0)
+    out_h = round(y1 - y0)
     if out_w < 1 or out_h < 1:
         raise ValueError('The transformed image is empty')
     if max(out_w, out_h) > MAX_OUTPUT_SIDE:
